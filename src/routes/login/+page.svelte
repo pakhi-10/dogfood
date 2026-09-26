@@ -1,3 +1,7 @@
+<script lang="ts">
+	let { form } = $props();
+</script>
+
 <svelte:head>
 	<title>Log in — DOGFOOD</title>
 </svelte:head>
