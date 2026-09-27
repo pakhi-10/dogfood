@@ -1,7 +1,10 @@
+
 <script lang="ts">
 	import Navbar from '$lib/components/Navbar.svelte';
 
 	let { data } = $props();
+
+	const isAdmin = data.user?.role === 'admin';
 
 	const statusLabels: Record<string, string> = {
 		upcoming: 'Upcoming',
@@ -33,205 +36,289 @@
 
 	<main>
 		<!-- HERO -->
-		<section class="hero">
-			<div class="hero-top">
-				<div class="hero-meta">
-					<span>01 / DOGFOOD 2026</span>
-					<span>OPEN SOURCE / SELF-HOSTABLE</span>
-				</div>
+		<section class:admin-hero={isAdmin} class="hero">
+			<div class="hero-grid"></div>
 
-				<div class="hero-status">
-					<span class="status-dot"></span>
-					LOCAL-FIRST HACKATHON INFRASTRUCTURE
-				</div>
-			</div>
+			{#if isAdmin}
 
-			<div class="hero-title-wrap">
-				<p class="hero-kicker">THE PLATFORM FOR</p>
+				<div class="hero-bottom">
+					<p class="hero-kicker">ADMINISTRATION</p>
 
-				<h1>
-					Build.<br />
-					Submit.<br />
-					<span>Get judged.</span>
-				</h1>
-			</div>
-
-			<div class="hero-bottom">
-				<p>
-					A complete platform for running hackathons,
-					forming teams, submitting projects and judging
-					real work.
-				</p>
-
-				<div class="hero-actions">
-					<a href="/events" class="button primary">
-						Explore events <span>↗</span>
-					</a>
-
-					<a href="/projects" class="button">
-						Public gallery <span>→</span>
-					</a>
-				</div>
-			</div>
-		</section>
-
-		<!-- MARQUEE -->
-		<div class="marquee" aria-hidden="true">
-			<div class="marquee-track">
-				<span>BUILD</span>
-				<i>✦</i>
-				<span>SUBMIT</span>
-				<i>✦</i>
-				<span>JUDGE</span>
-				<i>✦</i>
-				<span>SHIP</span>
-				<i>✦</i>
-				<span>BUILD</span>
-				<i>✦</i>
-				<span>SUBMIT</span>
-				<i>✦</i>
-				<span>JUDGE</span>
-				<i>✦</i>
-				<span>SHIP</span>
-				<i>✦</i>
-			</div>
-		</div>
-
-		<!-- EVENTS -->
-		<section class="section events-section">
-			<div class="section-header">
-				<div>
-					<p class="eyebrow">02 / EVENTS</p>
-					<h2>Current<br />events.</h2>
-				</div>
-
-				<div class="section-side">
-					<p>
-						Find an event, build something useful and
-						put it in front of judges.
-					</p>
-
-					<a href="/events" class="text-link">
-						View all events →
-					</a>
-				</div>
-			</div>
-
-			{#if data.events.length === 0}
-				<div class="empty">
-					<div>
-						<span class="empty-number">—</span>
-						<p>No events have been created yet.</p>
-					</div>
-
-					{#if data.user?.role === 'organizer' || data.user?.role === 'admin'}
-						<a href="/events/new">
-							Create an event →
+					<div class="hero-actions">
+						<a href="#overview" class="button">
+							Platform overview
 						</a>
-					{/if}
+
+						<a href="/admin/users" class="button">
+							User control 
+						</a>
+
+						<a href="/admin/users" class="button">
+							Manage Events
+						</a>
+					</div>
 				</div>
 			{:else}
-				<div class="event-list">
-					{#each data.events as event, index}
-						<a href={`/events/${event.id}`} class="event-row">
-							<div class="event-number">
-								{String(index + 1).padStart(2, '0')}
-							</div>
+				<div class="hero-title-wrap">
+					<p class="hero-kicker">OPEN SOURCE HACKATHON PLATFORM</p>
+					<h1>
+						Build.<br />
+						Submit.<br />
+						<span>Get judged.</span>
+					</h1>
+				</div>
 
-							<div class="event-main">
-								<div class="event-title">
-									<h3>{event.name}</h3>
+				<div class="hero-bottom">
+					<p>
+						A self-hostable platform for running, submitting and judging
+						hackathons.
+					</p>
 
-									<span class={`status ${event.status}`}>
-										{statusLabels[event.status]}
-									</span>
-								</div>
-
-								{#if event.tagline}
-									<p>{event.tagline}</p>
-								{:else if event.about}
-									<p>{event.about}</p>
-								{/if}
-							</div>
-
-							<div class="event-date">
-								<span>DEADLINE</span>
-								<strong>
-									{formatDate(event.applicationCloseAt)}
-								</strong>
-							</div>
-
-							<div class="arrow">↗</div>
+					<div class="hero-actions">
+						<a href="#events" class="button primary">
+							Explore events <span>↓</span>
 						</a>
-					{/each}
+
+						<a href="/signup" class="button">
+							Get started <span>↗</span>
+						</a>
+					</div>
 				</div>
 			{/if}
 		</section>
 
-		<!-- GALLERY -->
-		<section class="section gallery-section">
-			<div class="section-header">
-				<div>
-					<p class="eyebrow">03 / GALLERY</p>
-					<h2>Recent<br />projects.</h2>
-				</div>
+		<!-- MARQUEE -->
+		<div class="marquee">
+			<div class="marquee-track">
+				<span>DOGFOOD</span>
+				<span>OPEN SOURCE</span>
+				<span>SELF-HOSTED</span>
+				<span>HACKATHONS</span>
+				<span>JUDGING</span>
+				<span>DOGFOOD</span>
+				<span>OPEN SOURCE</span>
+				<span>SELF-HOSTED</span>
+				<span>HACKATHONS</span>
+				<span>JUDGING</span>
+			</div>
+		</div>
 
-				<div class="section-side">
-					<p>
-						Explore projects that have already made it
-						through the submission process.
-					</p>
+		{#if isAdmin}
+			<!-- ADMIN OVERVIEW -->
+			<section id="overview" class="section stats-section">
+				<div class="section-heading">
+					<div>
+						<p class="eyebrow">01 / SYSTEM OVERVIEW</p>
+						<h2>Platform<br />at a glance.</h2>
+					</div>
 
-					<a href="/projects" class="text-link">
-						Explore gallery →
+					<a href="/admin/users" class="button">
+						User control <span>↗</span>
 					</a>
 				</div>
-			</div>
 
-			{#if data.gallery.length === 0}
-				<div class="empty">
-					<div>
-						<span class="empty-number">—</span>
-						<p>No submitted projects yet.</p>
+				<div class="stats-grid">
+					<div class="stat-card">
+						<span class="stat-label">Users</span>
+						<strong>{data.adminStats?.users ?? 0}</strong>
+					</div>
+
+					<div class="stat-card">
+						<span class="stat-label">Events</span>
+						<strong>{data.adminStats?.events ?? 0}</strong>
+					</div>
+
+					<div class="stat-card">
+						<span class="stat-label">Teams</span>
+						<strong>{data.adminStats?.teams ?? 0}</strong>
+					</div>
+
+					<div class="stat-card">
+						<span class="stat-label">Projects</span>
+						<strong>{data.adminStats?.projects ?? 0}</strong>
+					</div>
+
+					<div class="stat-card">
+						<span class="stat-label">Judges</span>
+						<strong>{data.adminStats?.judges ?? 0}</strong>
 					</div>
 				</div>
-			{:else}
-				<div class="gallery-grid">
-					{#each data.gallery as project, index}
-						<a
-							href={`/projects/${project.id}`}
-							class="project-card"
-						>
-							<div class="project-image">
-								<div class="project-index">
+			</section>
+
+			<!-- ADMIN EVENTS -->
+			<section id="events" class="section events-section admin-events-section">
+				<div class="section-heading">
+					<div>
+						<p class="eyebrow">02 / CURRENT EVENTS</p>
+						<h2>Manage<br />your events.</h2>
+					</div>
+
+					<a href="/events/new" class="button primary">
+						Create event <span>↗</span>
+					</a>
+				</div>
+
+				{#if data.events.length === 0}
+					<div class="empty-state">
+						<p>No events have been created yet.</p>
+
+						<a href="/events/new" class="text-link">
+							Create your first event <span>↗</span>
+						</a>
+					</div>
+				{:else}
+					<div class="event-list">
+						{#each data.events as event, index}
+							<article class="event-card">
+								<div class="event-index">
 									{String(index + 1).padStart(2, '0')}
 								</div>
 
+								<div class="event-main">
+									<div class="event-topline">
+										<span class="status status-{event.status}">
+											{statusLabels[event.status]}
+										</span>
+
+										<span class="event-date">
+											{formatDate(event.applicationOpenAt)}
+											—
+											{formatDate(event.applicationCloseAt)}
+										</span>
+									</div>
+
+									<h3>{event.name}</h3>
+
+									{#if event.tagline}
+										<p>{event.tagline}</p>
+									{/if}
+								</div>
+
+								<div class="event-actions">
+									<a href={`/events/${event.id}`} class="text-link">
+										View <span>↗</span>
+									</a>
+
+									<a href={`/events/${event.id}/manage`} class="text-link">
+										Manage event
+									</a>
+								</div>
+							</article>
+						{/each}
+					</div>
+
+					<div class="events-create-row">
+						<a href="/events/new" class="create-event-link">
+							<span>+</span>
+							Create another event
+							<strong>↗</strong>
+						</a>
+					</div>
+				{/if}
+			</section>
+		{:else}
+			<!-- NORMAL EVENTS -->
+			<section id="events" class="section events-section">
+				<div class="section-heading">
+					<div>
+						<p class="eyebrow">01 / EVENTS</p>
+						<h2>Find your<br />next challenge.</h2>
+					</div>
+				</div>
+
+				{#if data.events.length === 0}
+					<div class="empty-state">
+						<p>No events are available right now.</p>
+					</div>
+				{:else}
+					<div class="event-list">
+						{#each data.events as event, index}
+							<article class="event-card">
+								<div class="event-index">
+									{String(index + 1).padStart(2, '0')}
+								</div>
+
+								<div class="event-main">
+									<div class="event-topline">
+										<span class="status status-{event.status}">
+											{statusLabels[event.status]}
+										</span>
+
+										<span class="event-date">
+											{formatDate(event.applicationOpenAt)}
+											—
+											{formatDate(event.applicationCloseAt)}
+										</span>
+									</div>
+
+									<h3>{event.name}</h3>
+
+									{#if event.tagline}
+										<p>{event.tagline}</p>
+									{/if}
+								</div>
+
+								<div class="event-actions">
+									<a href={`/events/${event.id}`} class="text-link">
+										View <span>↗</span>
+									</a>
+								</div>
+							</article>
+						{/each}
+					</div>
+				{/if}
+			</section>
+		{/if}
+
+		<!-- GALLERY -->
+		<section class="section gallery-section">
+			<div class="section-heading">
+				<div>
+					<p class="eyebrow">{isAdmin ? '03' : '02'} / GALLERY</p>
+					<h2>See what<br />people built.</h2>
+				</div>
+
+				<a href="/projects" class="button">
+					View gallery <span>↗</span>
+				</a>
+			</div>
+
+			{#if data.gallery.length === 0}
+				<div class="empty-state">
+					<p>No submitted projects yet.</p>
+				</div>
+			{:else}
+				<div class="gallery-grid">
+					{#each data.gallery as project}
+						<a href={`/projects/${project.id}`} class="gallery-card">
+							<div class="gallery-image">
 								{#if project.thumbnail}
 									<img
 										src={project.thumbnail}
 										alt={project.projectName}
 									/>
 								{:else}
-									<span>NO IMAGE</span>
+									<div class="gallery-placeholder">
+										<span>NO IMAGE</span>
+									</div>
 								{/if}
-
-								<div class="image-arrow">↗</div>
 							</div>
 
-							<div class="project-info">
-								<p class="project-event">
-									{project.eventName}
-									{#if project.trackName}
-										/ {project.trackName}
+							<div class="gallery-info">
+								<div>
+									<h3>{project.projectName}</h3>
+
+									{#if project.projectTagline}
+										<p>{project.projectTagline}</p>
 									{/if}
-								</p>
+								</div>
 
-								<h3>{project.projectName}</h3>
+								<span class="gallery-arrow">↗</span>
+							</div>
 
-								{#if project.projectTagline}
-									<p>{project.projectTagline}</p>
-								{/if}
+							<div class="gallery-meta">
+								<span>{project.eventName}</span>
+								<span>{project.trackName}</span>
 							</div>
 						</a>
 					{/each}
@@ -241,15 +328,16 @@
 
 		<!-- PARTICIPANT -->
 		{#if data.user?.role === 'participant'}
-			<section class="role-section participant-section">
-				<div class="role-number">04</div>
+			<section class="role-section">
+				<div class="role-number">{isAdmin ? '04' : '03'}</div>
 
 				<div class="role-content">
-					<p class="eyebrow">YOUR ACCOUNT</p>
-					<h2>Keep<br />building.</h2>
+					<p class="eyebrow">PARTICIPANT</p>
+					<h2>Build<br />something.</h2>
+
 					<p class="role-description">
-						Register for events, form a team and submit
-						your project before the deadline.
+						Join a team, submit your project and follow your progress
+						through the hackathon.
 					</p>
 				</div>
 
@@ -258,26 +346,25 @@
 						My activity <span>↗</span>
 					</a>
 
-					<a href="/events" class="button">
-						Find an event <span>→</span>
+					<a href="/projects" class="button">
+						Projects
 					</a>
 				</div>
 			</section>
 		{/if}
 
 		<!-- ORGANIZER -->
-		{#if data.user?.role === 'organizer' || data.user?.role === 'admin'}
-			<section class="role-section organizer-section">
-				<div class="role-number">
-					{data.user?.role === 'admin' ? '05' : '04'}
-				</div>
+		{#if data.user?.role === 'organizer'}
+			<section class="role-section">
+				<div class="role-number">{isAdmin ? '04' : '03'}</div>
 
 				<div class="role-content">
 					<p class="eyebrow">ORGANIZER</p>
-					<h2>Run<br />an event.</h2>
+					<h2>Run<br />your event.</h2>
+
 					<p class="role-description">
-						Create and manage your own hackathon,
-						configure tracks and control submissions.
+						Create events, configure participation and manage your
+						hackathon from one place.
 					</p>
 				</div>
 
@@ -287,7 +374,7 @@
 					</a>
 
 					<a href="/events/manage" class="button">
-						Manage events <span>→</span>
+						Manage events
 					</a>
 				</div>
 			</section>
@@ -295,15 +382,16 @@
 
 		<!-- JUDGE -->
 		{#if data.user?.role === 'judge'}
-			<section class="role-section judge-section">
-				<div class="role-number">04</div>
+			<section class="role-section">
+				<div class="role-number">{isAdmin ? '04' : '03'}</div>
 
 				<div class="role-content">
 					<p class="eyebrow">JUDGE</p>
-					<h2>Ready<br />to judge.</h2>
+					<h2>Review.<br />Score.</h2>
+
 					<p class="role-description">
-						Access your assigned projects and judging
-						workspace.
+						Review assigned projects and submit your scores through the
+						judging workflow.
 					</p>
 				</div>
 
@@ -314,234 +402,161 @@
 				</div>
 			</section>
 		{/if}
-
-		<!-- ADMIN -->
-		{#if data.user?.role === 'admin'}
-			<section class="role-section admin-section">
-				<div class="role-number">06</div>
-
-				<div class="role-content">
-					<p class="eyebrow">ADMIN</p>
-					<h2>System<br />control.</h2>
-					<p class="role-description">
-						Manage users and control the public platform.
-					</p>
-				</div>
-
-				<div class="role-actions">
-					<a href="/admin" class="button primary">
-						Admin dashboard <span>↗</span>
-					</a>
-
-					<a href="/admin/users" class="button">
-						Users
-					</a>
-
-					<a href="/admin/gallery" class="button">
-						Gallery
-					</a>
-				</div>
-			</section>
-		{/if}
 	</main>
 
-	<footer>
-		<div class="footer-main">
-			<div class="footer-brand">
-				<span class="footer-mark">D</span>
-				<strong>DOGFOOD</strong>
+	<footer class="footer">
+		<div class="footer-top">
+			<div>
+				<p class="eyebrow">DOGFOOD</p>
+				<p class="footer-description">
+					Open source. Self-hostable. Built for hackathons.
+				</p>
 			</div>
 
-			<p>
-				Hackathon infrastructure,<br />
-				without the hosted dependency.
-			</p>
-		</div>
+			<div class="footer-links">
+				<a href="/projects">Gallery</a>
+				<a href="/events">Events</a>
 
-		<div class="footer-links">
-			<a href="/events">Events</a>
-			<a href="/projects">Gallery</a>
-
-			{#if !data.user}
-				<a href="/login">Log in</a>
-				<a href="/signup">Sign up</a>
-			{/if}
+				{#if data.user?.role === 'admin'}
+					<a href="/admin/users">Users</a>
+				{/if}
+			</div>
 		</div>
 
 		<div class="footer-bottom">
-			<span>OPEN SOURCE / SELF-HOSTABLE</span>
-			<span>DOGFOOD 2026</span>
+			<span>© 2026 DOGFOOD</span>
+			<span>OPEN SOURCE HACKATHON PLATFORM</span>
 		</div>
 	</footer>
 </div>
 
 <style>
+	:global(*) {
+		box-sizing: border-box;
+	}
+
 	:global(html) {
-		background: #f3f0e8;
 		scroll-behavior: smooth;
 	}
 
 	:global(body) {
 		margin: 0;
-		background: #f3f0e8;
+		background: #f4f0e8;
 		color: #111;
-		font-family:
-			Arial,
-			Helvetica,
-			sans-serif;
+		font-family: Arial, Helvetica, sans-serif;
 	}
 
-	:global(*) {
-		box-sizing: border-box;
-	}
-
-	:global(::selection) {
-		background: #111;
-		color: #f3f0e8;
+	:global(a) {
+		color: inherit;
+		text-decoration: none;
 	}
 
 	.site {
 		min-height: 100vh;
-		background: #f3f0e8;
 		overflow: hidden;
 	}
 
 	main {
-		max-width: 1500px;
-		margin: 0 auto;
+		display: block;
 	}
 
-	/* HERO */
-
 	.hero {
-		min-height: calc(100vh - 78px);
-		padding: 3rem 2rem 3rem;
+		position: relative;
+		min-height: calc(100vh - 80px);
+		padding: 7rem 6vw 4rem;
 		display: flex;
 		flex-direction: column;
 		justify-content: space-between;
-		border-bottom: 2px solid #111;
+		background: #f4f0e8;
+		border-bottom: 1px solid #111;
 	}
 
-	.hero-top {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		gap: 2rem;
+	.hero.admin-hero {
+		min-height: 620px;
 	}
 
-	.hero-meta {
-		display: flex;
-		gap: 2rem;
-		font-size: 0.67rem;
-		font-weight: 900;
-		letter-spacing: 0.11em;
+	.hero-grid {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		background-image:
+			linear-gradient(to right, rgba(17, 17, 17, 0.06) 1px, transparent 1px),
+			linear-gradient(to bottom, rgba(17, 17, 17, 0.06) 1px, transparent 1px);
+		background-size: 80px 80px;
 	}
 
-	.hero-status {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.62rem;
-		font-weight: 900;
-		letter-spacing: 0.1em;
-		text-align: right;
+	.hero-title-wrap,
+	.hero-bottom {
+		position: relative;
+		z-index: 1;
 	}
 
-	.status-dot {
-		width: 7px;
-		height: 7px;
-		border-radius: 50%;
-		background: #111;
-		animation: pulse 1.8s ease-in-out infinite;
-	}
-
-	.hero-title-wrap {
-		margin: 7rem 0 5rem;
-	}
-
-	.hero-kicker {
+	.hero-kicker,
+	.eyebrow {
 		margin: 0 0 1.5rem;
 		font-size: 0.72rem;
-		font-weight: 900;
-		letter-spacing: 0.12em;
+		font-weight: 700;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
 	}
 
-	h1 {
-		font-size: clamp(5rem, 14vw, 13rem);
-		line-height: 0.76;
-		letter-spacing: -0.085em;
+	.hero h1 {
+		max-width: 1100px;
 		margin: 0;
-		font-weight: 950;
-		max-width: 1250px;
+		font-size: clamp(5rem, 12vw, 11rem);
+		line-height: 0.8;
+		font-weight: 800;
+		letter-spacing: -0.07em;
 	}
 
-	h1 span {
-		display: inline-block;
-		-webkit-text-stroke: 2px #111;
-		color: transparent;
-		transition: color 300ms ease;
-	}
-
-	h1 span:hover {
-		color: #111;
+	.hero h1 span {
+		font-style: italic;
 	}
 
 	.hero-bottom {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 3rem;
-		align-items: end;
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 2rem;
+		margin-top: 6rem;
 	}
 
 	.hero-bottom p {
-		max-width: 32rem;
-		font-size: 1.15rem;
-		line-height: 1.4;
+		max-width: 420px;
 		margin: 0;
+		font-size: 1rem;
+		line-height: 1.5;
 	}
 
-	.hero-actions,
-	.role-actions {
+	.hero-actions {
 		display: flex;
+		gap: 0.75rem;
 		flex-wrap: wrap;
-		gap: 0.7rem;
-		justify-content: flex-end;
 	}
 
 	.button {
 		display: inline-flex;
 		align-items: center;
-		justify-content: space-between;
-		gap: 2rem;
-		min-width: 150px;
-		padding: 0.9rem 1rem;
-		border: 2px solid #111;
-		color: #111;
-		background: transparent;
-		text-decoration: none;
+		justify-content: center;
+		gap: 1.25rem;
+		min-height: 48px;
+		padding: 0.75rem 1.1rem;
+		border: 1px solid #111;
 		font-size: 0.75rem;
-		font-weight: 900;
-		text-transform: uppercase;
+		font-weight: 700;
 		letter-spacing: 0.04em;
-		transition:
-			background 180ms ease,
-			color 180ms ease,
-			transform 180ms ease;
+		text-transform: uppercase;
+		transition: background 0.2s ease, color 0.2s ease;
 	}
 
 	.button:hover {
 		background: #111;
-		color: #f3f0e8;
-		transform: translateY(-3px);
-	}
-
-	.button span {
-		font-size: 1rem;
+		color: #f4f0e8;
 	}
 
 	.button.primary {
 		background: #111;
-		color: #f3f0e8;
+		color: #f4f0e8;
 	}
 
 	.button.primary:hover {
@@ -549,433 +564,26 @@
 		color: #111;
 	}
 
-	/* MARQUEE */
-
 	.marquee {
-		width: 100%;
 		overflow: hidden;
-		border-bottom: 2px solid #111;
+		border-bottom: 1px solid #111;
 		background: #111;
-		color: #f3f0e8;
-		padding: 0.85rem 0;
+		color: #f4f0e8;
 	}
 
 	.marquee-track {
 		display: flex;
-		align-items: center;
-		gap: 1.5rem;
 		width: max-content;
-		animation: marquee 24s linear infinite;
-		font-size: clamp(1rem, 2vw, 1.5rem);
-		font-weight: 950;
-		letter-spacing: -0.04em;
+		animation: marquee 25s linear infinite;
 	}
 
-	.marquee-track i {
-		font-style: normal;
-		font-size: 0.75em;
-	}
-
-	/* SECTIONS */
-
-	.section {
-		padding: 7rem 2rem;
-		border-bottom: 2px solid #111;
-	}
-
-	.section-header {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 3rem;
-		margin-bottom: 4rem;
-	}
-
-	.eyebrow {
-		margin: 0 0 1rem;
-		font-size: 0.68rem;
-		font-weight: 900;
-		letter-spacing: 0.12em;
-	}
-
-	h2 {
-		font-size: clamp(4rem, 8vw, 8rem);
-		line-height: 0.78;
-		letter-spacing: -0.08em;
-		margin: 0;
-		font-weight: 950;
-	}
-
-	.section-side {
-		display: flex;
-		flex-direction: column;
-		justify-content: flex-end;
-		align-items: flex-end;
-		gap: 2rem;
-	}
-
-	.section-side p {
-		max-width: 27rem;
-		font-size: 1rem;
-		line-height: 1.5;
-		margin: 0;
-		align-self: flex-end;
-	}
-
-	.text-link {
-		color: inherit;
-		font-size: 0.72rem;
-		font-weight: 900;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		text-decoration: none;
-		border-bottom: 2px solid #111;
-		padding-bottom: 0.3rem;
-		transition:
-			padding 180ms ease,
-			background 180ms ease,
-			color 180ms ease;
-	}
-
-	.text-link:hover {
-		background: #111;
-		color: #f3f0e8;
-		padding: 0.3rem 0.5rem;
-	}
-
-	/* EVENTS */
-
-	.event-list {
-		border-top: 2px solid #111;
-	}
-
-	.event-row {
-		display: grid;
-		grid-template-columns: 70px 1fr 180px 30px;
-		gap: 1.5rem;
-		align-items: center;
-		padding: 1.6rem 0;
-		border-bottom: 2px solid #111;
-		color: inherit;
-		text-decoration: none;
-		transition:
-			background 180ms ease,
-			color 180ms ease,
-			padding 180ms ease;
-	}
-
-	.event-row:hover {
-		background: #111;
-		color: #f3f0e8;
-		padding-left: 1rem;
-		padding-right: 1rem;
-	}
-
-	.event-number {
-		font-size: 0.72rem;
-		font-weight: 900;
-	}
-
-	.event-title {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-		flex-wrap: wrap;
-	}
-
-	.event-title h3 {
-		font-size: clamp(1.5rem, 3vw, 2.3rem);
-		margin: 0;
-		letter-spacing: -0.05em;
-	}
-
-	.event-main p {
-		margin: 0.5rem 0 0;
-		max-width: 650px;
-		opacity: 0.65;
-		line-height: 1.4;
-	}
-
-	.status {
-		padding: 0.3rem 0.5rem;
-		border: 1px solid currentColor;
-		font-size: 0.58rem;
-		font-weight: 900;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-	}
-
-	.event-date {
-		display: grid;
-		gap: 0.25rem;
+	.marquee span {
+		padding: 0.85rem 2rem;
 		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.14em;
+		white-space: nowrap;
 	}
-
-	.event-date span {
-		font-weight: 900;
-		letter-spacing: 0.08em;
-		opacity: 0.6;
-	}
-
-	.event-date strong {
-		font-size: 0.85rem;
-	}
-
-	.arrow {
-		font-size: 1.4rem;
-		font-weight: 900;
-		transition: transform 180ms ease;
-	}
-
-	.event-row:hover .arrow {
-		transform: translate(4px, -4px);
-	}
-
-	/* EMPTY */
-
-	.empty {
-		border: 2px solid #111;
-		padding: 2rem;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 2rem;
-	}
-
-	.empty p {
-		margin: 0;
-		font-weight: 800;
-	}
-
-	.empty-number {
-		font-size: 3rem;
-		font-weight: 950;
-		display: block;
-		margin-bottom: 0.5rem;
-	}
-
-	.empty a {
-		color: inherit;
-		font-weight: 900;
-	}
-
-	/* GALLERY */
-
-	.gallery-grid {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 1.2rem;
-	}
-
-	.project-card {
-		color: inherit;
-		text-decoration: none;
-		border: 2px solid #111;
-		overflow: hidden;
-		transition:
-			transform 220ms ease,
-			box-shadow 220ms ease;
-	}
-
-	.project-card:hover {
-		transform: translateY(-7px);
-		box-shadow: 8px 8px 0 #111;
-	}
-
-	.project-image {
-		position: relative;
-		aspect-ratio: 16 / 10;
-		border-bottom: 2px solid #111;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: #ddd9cf;
-		font-size: 0.65rem;
-		font-weight: 900;
-		overflow: hidden;
-	}
-
-	.project-image img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-		display: block;
-		transition: transform 450ms ease;
-	}
-
-	.project-card:hover .project-image img {
-		transform: scale(1.04);
-	}
-
-	.project-index {
-		position: absolute;
-		z-index: 2;
-		top: 0.7rem;
-		left: 0.7rem;
-		padding: 0.35rem 0.45rem;
-		background: #f3f0e8;
-		border: 1px solid #111;
-		font-size: 0.6rem;
-		font-weight: 900;
-	}
-
-	.image-arrow {
-		position: absolute;
-		right: 0.7rem;
-		bottom: 0.7rem;
-		z-index: 2;
-		width: 32px;
-		height: 32px;
-		display: grid;
-		place-items: center;
-		background: #111;
-		color: #f3f0e8;
-		font-weight: 900;
-		transform: translateY(8px);
-		opacity: 0;
-		transition:
-			opacity 180ms ease,
-			transform 180ms ease;
-	}
-
-	.project-card:hover .image-arrow {
-		opacity: 1;
-		transform: translateY(0);
-	}
-
-	.project-info {
-		padding: 1.25rem;
-	}
-
-	.project-event {
-		font-size: 0.6rem;
-		font-weight: 900;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		margin: 0 0 1rem;
-		opacity: 0.6;
-	}
-
-	.project-info h3 {
-		font-size: 1.8rem;
-		line-height: 0.9;
-		letter-spacing: -0.05em;
-		margin: 0 0 0.75rem;
-	}
-
-	.project-info > p:last-child {
-		margin: 0;
-		opacity: 0.65;
-		line-height: 1.4;
-	}
-
-	/* ROLE SECTIONS */
-
-	.role-section {
-		padding: 5rem 2rem;
-		border-bottom: 2px solid #111;
-		display: grid;
-		grid-template-columns: 70px 1fr 1fr;
-		gap: 3rem;
-		align-items: end;
-	}
-
-	.role-number {
-		font-size: 0.72rem;
-		font-weight: 900;
-		align-self: start;
-	}
-
-	.role-content h2 {
-		margin-bottom: 1.5rem;
-	}
-
-	.role-description {
-		max-width: 32rem;
-		font-size: 1.05rem;
-		line-height: 1.5;
-		margin: 0;
-		opacity: 0.7;
-	}
-
-	/* FOOTER */
-
-	footer {
-		max-width: 1500px;
-		margin: 0 auto;
-		padding: 4rem 2rem 2rem;
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 4rem;
-	}
-
-	.footer-main {
-		display: grid;
-		gap: 1rem;
-	}
-
-	.footer-brand {
-		display: flex;
-		align-items: center;
-		gap: 0.7rem;
-	}
-
-	.footer-mark {
-		width: 34px;
-		height: 34px;
-		display: grid;
-		place-items: center;
-		border: 2px solid #111;
-		font-weight: 950;
-	}
-
-	.footer-brand strong {
-		font-size: 1.1rem;
-		letter-spacing: -0.04em;
-	}
-
-	.footer-main p {
-		margin: 0;
-		font-size: 0.85rem;
-		line-height: 1.5;
-		opacity: 0.6;
-	}
-
-	.footer-links {
-		display: flex;
-		justify-content: flex-end;
-		align-items: flex-start;
-		gap: 1.5rem;
-		flex-wrap: wrap;
-	}
-
-	.footer-links a {
-		color: inherit;
-		font-size: 0.7rem;
-		font-weight: 900;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		text-decoration: none;
-		border-bottom: 1px solid transparent;
-	}
-
-	.footer-links a:hover {
-		border-bottom-color: #111;
-	}
-
-	.footer-bottom {
-		grid-column: 1 / -1;
-		padding-top: 1.5rem;
-		border-top: 1px solid #111;
-		display: flex;
-		justify-content: space-between;
-		gap: 1rem;
-		font-size: 0.6rem;
-		font-weight: 900;
-		letter-spacing: 0.1em;
-		opacity: 0.55;
-	}
-
-	/* MOTION */
 
 	@keyframes marquee {
 		from {
@@ -987,100 +595,384 @@
 		}
 	}
 
-	@keyframes pulse {
-		0%,
-		100% {
-			opacity: 1;
-			transform: scale(1);
-		}
-
-		50% {
-			opacity: 0.35;
-			transform: scale(0.7);
-		}
+	.section {
+		padding: 7rem 6vw;
+		border-bottom: 1px solid #111;
 	}
 
-	/* MOBILE */
+	.section-heading {
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 2rem;
+		margin-bottom: 4rem;
+	}
 
-	@media (max-width: 800px) {
+	.section-heading h2 {
+		margin: 0;
+		font-size: clamp(3rem, 7vw, 7rem);
+		line-height: 0.85;
+		letter-spacing: -0.06em;
+		font-weight: 800;
+	}
+
+	.stats-section {
+		background: #111;
+		color: #f4f0e8;
+	}
+
+	.stats-section .button {
+		border-color: #f4f0e8;
+	}
+
+	.stats-section .button:hover {
+		background: #f4f0e8;
+		color: #111;
+	}
+
+	.stats-grid {
+		display: grid;
+		grid-template-columns: repeat(5, 1fr);
+		border-top: 1px solid rgba(244, 240, 232, 0.4);
+		border-left: 1px solid rgba(244, 240, 232, 0.4);
+	}
+
+	.stat-card {
+		min-height: 190px;
+		padding: 1.5rem;
+		border-right: 1px solid rgba(244, 240, 232, 0.4);
+		border-bottom: 1px solid rgba(244, 240, 232, 0.4);
+		display: flex;
+		flex-direction: column;
+		justify-content: space-between;
+	}
+
+	.stat-label {
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		opacity: 0.65;
+	}
+
+	.stat-card strong {
+		font-size: clamp(3rem, 5vw, 5rem);
+		line-height: 0.85;
+		letter-spacing: -0.06em;
+	}
+
+	.event-list {
+		border-top: 1px solid #111;
+	}
+
+	.event-card {
+		display: grid;
+		grid-template-columns: 80px 1fr auto;
+		gap: 2rem;
+		align-items: center;
+		padding: 2rem 0;
+		border-bottom: 1px solid #111;
+	}
+
+	.event-index {
+		font-size: 0.75rem;
+		font-weight: 700;
+	}
+
+	.event-main h3 {
+		margin: 0.75rem 0 0.35rem;
+		font-size: clamp(1.8rem, 3vw, 3rem);
+		line-height: 0.95;
+		letter-spacing: -0.04em;
+	}
+
+	.event-main p {
+		margin: 0;
+		max-width: 600px;
+		color: #555;
+		line-height: 1.5;
+	}
+
+	.event-topline {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		flex-wrap: wrap;
+	}
+
+	.status {
+		display: inline-block;
+		padding: 0.35rem 0.55rem;
+		border: 1px solid #111;
+		font-size: 0.65rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	.status-upcoming {
+		background: #ddd7c9;
+	}
+
+	.status-active {
+		background: #111;
+		color: #f4f0e8;
+	}
+
+	.status-ended {
+		opacity: 0.55;
+	}
+
+	.event-date {
+		font-size: 0.7rem;
+		color: #555;
+	}
+
+	.event-actions {
+		display: flex;
+		gap: 1.25rem;
+		align-items: center;
+	}
+
+	.text-link {
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.text-link span {
+		margin-left: 0.4rem;
+	}
+
+	.text-link:hover {
+		text-decoration: underline;
+	}
+
+	.events-create-row {
+		padding-top: 2rem;
+	}
+
+	.create-event-link {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 1.5rem 0;
+		border-bottom: 1px solid #111;
+		font-size: 1rem;
+		font-weight: 700;
+	}
+
+	.create-event-link span {
+		font-size: 2rem;
+		font-weight: 400;
+	}
+
+	.create-event-link strong {
+		font-size: 1rem;
+	}
+
+	.empty-state {
+		padding: 4rem 0;
+		border-top: 1px solid #111;
+		border-bottom: 1px solid #111;
+	}
+
+	.empty-state p {
+		margin: 0 0 1.5rem;
+		color: #555;
+	}
+
+	.gallery-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 1px;
+		background: #111;
+		border: 1px solid #111;
+	}
+
+	.gallery-card {
+		background: #f4f0e8;
+		padding-bottom: 1.25rem;
+	}
+
+	.gallery-image {
+		aspect-ratio: 4 / 3;
+		overflow: hidden;
+		background: #ddd7c9;
+		border-bottom: 1px solid #111;
+	}
+
+	.gallery-image img {
+		width: 100%;
+		height: 100%;
+		display: block;
+		object-fit: cover;
+	}
+
+	.gallery-placeholder {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.1em;
+	}
+
+	.gallery-info {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 1.25rem 1.25rem 0;
+	}
+
+	.gallery-info h3 {
+		margin: 0;
+		font-size: 1.3rem;
+		letter-spacing: -0.03em;
+	}
+
+	.gallery-info p {
+		margin: 0.35rem 0 0;
+		color: #555;
+		font-size: 0.85rem;
+		line-height: 1.4;
+	}
+
+	.gallery-arrow {
+		font-size: 1.1rem;
+	}
+
+	.gallery-meta {
+		display: flex;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 1rem 1.25rem 0;
+		color: #666;
+		font-size: 0.65rem;
+		font-weight: 700;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+	}
+
+	.role-section {
+		display: grid;
+		grid-template-columns: 80px 1fr auto;
+		gap: 2rem;
+		align-items: center;
+		padding: 7rem 6vw;
+		border-bottom: 1px solid #111;
+	}
+
+	.role-number {
+		font-size: 0.75rem;
+		font-weight: 700;
+		align-self: start;
+	}
+
+	.role-content h2 {
+		margin: 0;
+		font-size: clamp(3.5rem, 7vw, 7rem);
+		line-height: 0.82;
+		letter-spacing: -0.06em;
+	}
+
+	.role-description {
+		max-width: 520px;
+		margin: 2rem 0 0;
+		color: #555;
+		line-height: 1.5;
+	}
+
+	.role-actions {
+		display: flex;
+		flex-direction: column;
+		gap: 0.65rem;
+		min-width: 180px;
+	}
+
+	.footer {
+		padding: 4rem 6vw 2rem;
+		background: #111;
+		color: #f4f0e8;
+	}
+
+	.footer-top {
+		display: flex;
+		justify-content: space-between;
+		gap: 3rem;
+		padding-bottom: 5rem;
+	}
+
+	.footer-description {
+		max-width: 350px;
+		margin: 0;
+		line-height: 1.5;
+		opacity: 0.7;
+	}
+
+	.footer-links {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		font-size: 0.75rem;
+		font-weight: 700;
+		text-transform: uppercase;
+	}
+
+	.footer-links a:hover {
+		text-decoration: underline;
+	}
+
+	.footer-bottom {
+		display: flex;
+		justify-content: space-between;
+		gap: 1rem;
+		padding-top: 1.5rem;
+		border-top: 1px solid rgba(244, 240, 232, 0.25);
+		font-size: 0.65rem;
+		letter-spacing: 0.08em;
+		opacity: 0.6;
+	}
+
+	@media (max-width: 900px) {
 		.hero {
-			min-height: auto;
-			padding: 2.5rem 1rem 3rem;
+			min-height: 700px;
+			padding: 5rem 5vw 3rem;
 		}
 
-		.hero-top {
-			flex-direction: column;
-			gap: 1rem;
-		}
-
-		.hero-meta {
-			flex-direction: column;
-			gap: 0.5rem;
-		}
-
-		.hero-status {
-			text-align: left;
-		}
-
-		.hero-title-wrap {
-			margin: 7rem 0;
-		}
-
-		h1 {
-			font-size: clamp(4.2rem, 18vw, 8rem);
+		.hero h1 {
+			font-size: clamp(4rem, 15vw, 8rem);
 		}
 
 		.hero-bottom {
-			grid-template-columns: 1fr;
-			gap: 2rem;
-		}
-
-		.hero-actions,
-		.role-actions {
-			justify-content: flex-start;
-		}
-
-		.section {
-			padding: 5rem 1rem;
-		}
-
-		.section-header {
-			grid-template-columns: 1fr;
-			gap: 2rem;
-			margin-bottom: 3rem;
-		}
-
-		.section-side {
 			align-items: flex-start;
+			flex-direction: column;
 		}
 
-		.section-side p {
-			align-self: flex-start;
+		.section,
+		.role-section {
+			padding: 5rem 5vw;
 		}
 
-		h2 {
-			font-size: clamp(3.8rem, 16vw, 7rem);
+		.section-heading {
+			align-items: flex-start;
+			flex-direction: column;
 		}
 
-		.event-row {
-			grid-template-columns: 35px 1fr 25px;
-			gap: 0.8rem;
+		.event-card {
+			grid-template-columns: 50px 1fr;
 		}
 
-		.event-date {
-			display: none;
+		.event-actions {
+			grid-column: 2;
 		}
 
-		.event-title {
-			gap: 0.5rem;
-		}
-
-		.event-title h3 {
-			font-size: 1.5rem;
-		}
-
-		.event-main p {
-			font-size: 0.85rem;
+		.stats-grid {
+			grid-template-columns: repeat(2, 1fr);
 		}
 
 		.gallery-grid {
@@ -1088,51 +980,59 @@
 		}
 
 		.role-section {
-			grid-template-columns: 35px 1fr;
-			gap: 1rem;
-			padding: 4rem 1rem;
-		}
-
-		.role-content {
-			grid-column: 2;
+			grid-template-columns: 50px 1fr;
 		}
 
 		.role-actions {
 			grid-column: 2;
-		}
-
-		footer {
-			grid-template-columns: 1fr;
-			padding: 3rem 1rem 1.5rem;
-			gap: 2rem;
-		}
-
-		.footer-links {
-			justify-content: flex-start;
-		}
-
-		.footer-bottom {
-			grid-column: 1;
-			flex-direction: column;
-			gap: 0.5rem;
+			flex-direction: row;
+			flex-wrap: wrap;
 		}
 	}
 
-	@media (prefers-reduced-motion: reduce) {
-		:global(html) {
-			scroll-behavior: auto;
+	@media (max-width: 600px) {
+		.hero {
+			min-height: 650px;
 		}
 
-		.marquee-track {
-			animation: none;
+		.hero h1 {
+			font-size: clamp(3.5rem, 18vw, 6rem);
 		}
 
-		.status-dot {
-			animation: none;
+		.stats-grid {
+			grid-template-columns: 1fr;
 		}
 
-		* {
-			transition-duration: 0.01ms !important;
+		.stat-card {
+			min-height: 150px;
+		}
+
+		.event-card {
+			grid-template-columns: 1fr;
+			gap: 1rem;
+		}
+
+		.event-actions {
+			grid-column: auto;
+		}
+
+		.role-section {
+			grid-template-columns: 1fr;
+		}
+
+		.role-number {
+			margin-bottom: -0.5rem;
+		}
+
+		.role-actions {
+			grid-column: auto;
+			min-width: 0;
+		}
+
+		.footer-top,
+		.footer-bottom {
+			flex-direction: column;
 		}
 	}
 </style>
+
