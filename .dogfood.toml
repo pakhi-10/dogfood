@@ -1,0 +1,19 @@
+[portal]
+base_url = "http://localhost:5173"
+
+[tiers]
+claimed = ["T1"]
+pitch = "A self-hostable hackathon portal with role-based authentication, event management, team formation, project submissions, and a public project gallery."
+
+[auth]
+organizer = "Cookie: session=REPLACE_ORGANIZER"
+judge_a = "Cookie: session=REPLACE_JUDGE_A"
+judge_b = "Cookie: session=REPLACE_JUDGE_B"
+participant = "Cookie: session=REPLACE_PARTICIPANT"
+
+[routes]
+gallery = "/projects"
+submit = "/projects/new"
+judge_scores = "/api/judge/scores"
+peer_scores = "/api/judge/scores?judge=judge_a"
+csv_export = "/api/export.csv"
