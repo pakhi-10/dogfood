@@ -111,9 +111,12 @@
 						put it in front of judges.
 					</p>
 
-					<a href="/events" class="text-link">
-						View all events →
-					</a>
+					<a
+	href={data.user?.role === 'organizer' ? '/events/my-events' : '/events'}
+	class="text-link"
+>
+	View {data.user?.role === 'organizer' ? 'my events' : 'all events'} →
+</a>
 				</div>
 			</div>
 
