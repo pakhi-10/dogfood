@@ -1,6 +1,13 @@
 import { db } from '$lib/server/db';
-import { events, projects, teams, stages, tracks } from '$lib/server/db/schema';
-import { desc, eq } from 'drizzle-orm';
+import {
+	events,
+	projects,
+	teams,
+	stages,
+	tracks,
+	users
+} from '$lib/server/db/schema';
+import { count, desc, eq } from 'drizzle-orm';
 
 export const load = async ({ locals }) => {
 	const now = new Date();
@@ -62,9 +69,44 @@ export const load = async ({ locals }) => {
 		.orderBy(desc(projects.submittedAt))
 		.limit(3);
 
+	let adminStats = null;
+
+	if (locals.user?.role === 'admin') {
+		const [
+			userCount,
+			eventCount,
+			projectCount,
+			teamCount,
+			judgeCount
+		] = await Promise.all([
+			db.select({ count: count() }).from(users),
+
+			db.select({ count: count() }).from(events),
+
+			db.select({ count: count() }).from(projects),
+
+			db.select({ count: count() }).from(teams),
+
+			db
+				.select({ count: count() })
+				.from(users)
+				.where(eq(users.type, 'judge'))
+		]);
+
+		adminStats = {
+			users: userCount[0]?.count ?? 0,
+			events: eventCount[0]?.count ?? 0,
+			projects: projectCount[0]?.count ?? 0,
+			teams: teamCount[0]?.count ?? 0,
+			judges: judgeCount[0]?.count ?? 0
+		};
+	}
+
 	return {
 		user: locals.user,
 		events: currentEvents,
-		gallery: galleryRows
+		gallery: galleryRows,
+		adminStats
 	};
 };
+
