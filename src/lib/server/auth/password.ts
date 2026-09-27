@@ -18,14 +18,26 @@ export async function hashPassword(password: string): Promise<string> {
 		KEY_LENGTH
 	)) as Buffer;
 
-	return `${salt}:${derivedKey.toString('hex')}`;
+	return `scrypt:${salt}:${derivedKey.toString('hex')}`;
 }
 
 export async function verifyPassword(
 	password: string,
 	storedHash: string
 ): Promise<boolean> {
-	const [salt, hash] = storedHash.split(':');
+	const parts = storedHash.split(':');
+
+	let salt: string;
+	let hash: string;
+
+	if (parts.length === 3 && parts[0] === 'scrypt') {
+		[, salt, hash] = parts;
+	} else if (parts.length === 2) {
+		// Backwards-compatible format: salt:hash
+		[salt, hash] = parts;
+	} else {
+		return false;
+	}
 
 	if (!salt || !hash) {
 		return false;
