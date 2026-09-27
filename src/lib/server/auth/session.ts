@@ -19,7 +19,6 @@ function toCurrentUser(user: typeof users.$inferSelect): CurrentUser {
 		id: user.id,
 		name: user.name,
 		email: user.email,
-		username: user.username,
 		role: user.type
 	};
 }

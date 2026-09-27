@@ -9,6 +9,5 @@ export interface CurrentUser {
 	id: string;
 	name: string;
 	email: string | null;
-	username: string | null;
 	role: Role;
 }

@@ -34,7 +34,6 @@ export const users = pgTable(
 		id: uuid('id').defaultRandom().primaryKey(),
 		name: varchar('name', { length: 150 }).notNull(),
 		type: userType('type').notNull(),
-		username: varchar('username', { length: 100 }),
 		email: varchar('email', { length: 255 }),
 		password: varchar('password', { length: 255 }).notNull(),
 		createdAt: timestamp('created_at', {
@@ -43,7 +42,6 @@ export const users = pgTable(
 	},
 	(table) => ({
 		emailUnique: uniqueIndex('users_email_unique_idx').on(table.email),
-		usernameUnique: uniqueIndex('users_username_unique_idx').on(table.username)
 	})
 );
 

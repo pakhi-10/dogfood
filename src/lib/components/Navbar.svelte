@@ -71,13 +71,20 @@
 								<span>→</span>
 							</a>
 
-							<a
-								href="/logout"
-								onclick={closeMenus}
+							<form
+								method="POST"
+								action="/logout"
+								class="logout-form"
+							>
+							<button
+								type="submit"
+								class="logout-button"
 							>
 								Log out
 								<span>↗</span>
-							</a>
+							</button>
+						</form>
+
 						</div>
 					{/if}
 				</div>
@@ -122,9 +129,21 @@
 					My activity →
 				</a>
 
-				<a href="/logout" onclick={closeMenus}>
-					Log out ↗
-				</a>
+				<form
+					method="POST"
+					action="/logout"
+					class="logout-form"
+				>
+				<button
+					type="submit"
+					class="logout-button"
+				>
+					Log out
+					<span>↗</span>
+				</button>
+			</form>
+
+
 			{:else}
 				<a href="/login" onclick={closeMenus}>
 					Log in →
@@ -339,33 +358,49 @@
 		background: #111;
 	}
 
-	.account-menu a {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 0.95rem 1rem;
-		color: #111;
-		text-decoration: none;
-		font-size: 0.75rem;
-		font-weight: 900;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		border-bottom: 1px solid #111;
-		transition:
-			background 150ms ease,
-			color 150ms ease,
-			padding 150ms ease;
-	}
+.account-menu a,
+.account-menu .logout-button {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 0.95rem 1rem;
+	color: #111;
+	text-decoration: none;
+	font: inherit;
+	font-size: 0.75rem;
+	font-weight: 900;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	border: 0;
+	border-bottom: 1px solid #111;
+	background: transparent;
+	cursor: pointer;
+	text-align: left;
+	transition:
+		background 150ms ease,
+		color 150ms ease,
+		padding 150ms ease;
+}
 
-	.account-menu a:last-child {
-		border-bottom: 0;
-	}
+.account-menu .logout-form {
+	margin: 0;
+	padding: 0;
+}
 
-	.account-menu a:hover {
-		background: #111;
-		color: #f3f0e8;
-		padding-left: 1.25rem;
-	}
+.account-menu a:hover,
+.account-menu .logout-button:hover {
+	background: #111;
+	color: #f3f0e8;
+	padding-left: 1.25rem;
+}
+
+.account-menu .logout-form:last-child .logout-button {
+	border-bottom: 0;
+}
+
+
 
 	.mobile-toggle,
 	.mobile-menu {
@@ -433,6 +468,33 @@
 
 		.mobile-divider {
 			height: 1rem;
+		}
+
+				.mobile-menu .logout-form {
+			margin: 0;
+			padding: 0;
+		}
+
+		.mobile-menu .logout-button {
+			width: 100%;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding: 1rem 0;
+			border: 0;
+			border-bottom: 1px solid #111;
+			background: transparent;
+			color: #111;
+			font: inherit;
+			font-size: 1.1rem;
+			font-weight: 900;
+			text-align: left;
+			cursor: pointer;
+		}
+
+		.mobile-menu .logout-button:hover {
+			background: #111;
+			color: #f3f0e8;
 		}
 	}
 </style>

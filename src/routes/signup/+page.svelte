@@ -45,15 +45,6 @@
 			</label>
 
 			<label>
-				Username
-				<input
-					name="username"
-					type="text"
-					autocomplete="username"
-				/>
-			</label>
-
-			<label>
 				Password
 				<input
 					name="password"

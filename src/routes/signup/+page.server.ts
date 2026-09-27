@@ -18,9 +18,6 @@ export const actions = {
 			.trim()
 			.toLowerCase();
 
-		const username = String(
-			form.get('username') ?? ''
-		).trim();
 
 		const password = String(form.get('password') ?? '');
 
@@ -55,7 +52,6 @@ export const actions = {
 			.values({
 				name,
 				email,
-				username: username || null,
 				password: passwordHash,
 				type: 'participant'
 			})
