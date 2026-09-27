@@ -46,13 +46,19 @@ export const users = pgTable(
 	{
 		id: uuid('id').defaultRandom().primaryKey(),
 
-		name: varchar('name', { length: 150 }).notNull(),
+		name: varchar('name', {
+			length: 150
+		}).notNull(),
 
 		type: userType('type').notNull(),
 
-		email: varchar('email', { length: 255 }),
+		email: varchar('email', {
+			length: 255
+		}),
 
-		password: varchar('password', { length: 255 }).notNull(),
+		password: varchar('password', {
+			length: 255
+		}).notNull(),
 
 		createdAt: timestamp('created_at', {
 			withTimezone: true
@@ -61,9 +67,9 @@ export const users = pgTable(
 			.notNull()
 	},
 	(table) => ({
-		emailUnique: uniqueIndex('users_email_unique_idx').on(
-			table.email
-		)
+		emailUnique: uniqueIndex(
+			'users_email_unique_idx'
+		).on(table.email)
 	})
 );
 
@@ -101,13 +107,13 @@ export const sessions = pgTable(
 			'sessions_token_hash_unique_idx'
 		).on(table.tokenHash),
 
-		userIndex: index('sessions_user_id_idx').on(
-			table.userId
-		),
+		userIndex: index(
+			'sessions_user_id_idx'
+		).on(table.userId),
 
-		expiresIndex: index('sessions_expires_at_idx').on(
-			table.expiresAt
-		)
+		expiresIndex: index(
+			'sessions_expires_at_idx'
+		).on(table.expiresAt)
 	})
 );
 
@@ -147,6 +153,10 @@ export const events = pgTable(
 		}),
 
 		applicationCloseAt: timestamp('application_close_at', {
+			withTimezone: true
+		}),
+
+		submissionsClose: timestamp('submissions_close', {
 			withTimezone: true
 		}),
 
@@ -224,14 +234,21 @@ export const tracks = pgTable(
 			.notNull()
 	},
 	(table) => ({
-		eventIndex: index('tracks_event_id_idx').on(
-			table.eventId
+		eventIndex: index(
+			'tracks_event_id_idx'
+		).on(table.eventId),
+
+		eventNameUnique: uniqueIndex(
+			'tracks_event_name_unique_idx'
+		).on(
+			table.eventId,
+			table.name
 		)
 	})
 );
 
 /* -------------------------------------------------------------------------- */
-/* Submission Forms                                                            */
+/* Submission Forms                                                           */
 /* -------------------------------------------------------------------------- */
 
 export const submissionForms = pgTable(
@@ -252,59 +269,7 @@ export const submissionForms = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
-/* Stages                                                                     */
-/* -------------------------------------------------------------------------- */
-
-export const stages = pgTable(
-	'stages',
-	{
-		id: uuid('id').defaultRandom().primaryKey(),
-
-		trackId: uuid('track_id')
-			.notNull()
-			.references(() => tracks.id, {
-				onDelete: 'cascade'
-			}),
-
-		formId: uuid('form_id')
-			.notNull()
-			.references(() => submissionForms.id, {
-				onDelete: 'restrict'
-			}),
-
-		name: varchar('name', {
-			length: 200
-		}).notNull(),
-
-		description: text('description'),
-
-		startAt: timestamp('start_at', {
-			withTimezone: true
-		}),
-
-		endAt: timestamp('end_at', {
-			withTimezone: true
-		}),
-
-		createdAt: timestamp('created_at', {
-			withTimezone: true
-		})
-			.defaultNow()
-			.notNull()
-	},
-	(table) => ({
-		trackIndex: index('stages_track_id_idx').on(
-			table.trackId
-		),
-
-		formIndex: index('stages_form_id_idx').on(
-			table.formId
-		)
-	})
-);
-
-/* -------------------------------------------------------------------------- */
-/* Custom Questions                                                            */
+/* Custom Questions                                                           */
 /* -------------------------------------------------------------------------- */
 
 export const customQuestions = pgTable(
@@ -320,7 +285,9 @@ export const customQuestions = pgTable(
 
 		question: text('question').notNull(),
 
-		questionType: questionType('question_type').notNull(),
+		questionType: questionType(
+			'question_type'
+		).notNull(),
 
 		required: boolean('required')
 			.notNull()
@@ -371,10 +338,6 @@ export const teams = pgTable(
 			}
 		),
 
-		currentStageId: uuid('current_stage_id').references(
-			() => stages.id
-		),
-
 		createdAt: timestamp('created_at', {
 			withTimezone: true
 		})
@@ -382,20 +345,16 @@ export const teams = pgTable(
 			.notNull()
 	},
 	(table) => ({
-		eventIndex: index('teams_event_id_idx').on(
-			table.eventId
-		),
+		eventIndex: index(
+			'teams_event_id_idx'
+		).on(table.eventId),
 
 		teamNameUnique: uniqueIndex(
 			'teams_event_name_unique_idx'
 		).on(
 			table.eventId,
 			table.teamName
-		),
-
-		currentStageIndex: index(
-			'teams_current_stage_id_idx'
-		).on(table.currentStageId)
+		)
 	})
 );
 
@@ -490,29 +449,32 @@ export const projects = pgTable(
 				onDelete: 'cascade'
 			}),
 
-		stageId: uuid('stage_id')
-			.notNull()
-			.references(() => stages.id, {
-				onDelete: 'restrict'
-			}),
-
 		trackId: uuid('track_id')
 			.notNull()
 			.references(() => tracks.id, {
 				onDelete: 'restrict'
 			}),
 
-		projectName: varchar('project_name', {
+		/*
+		 * Fixture-compatible field:
+		 * fixture.title -> projects.title
+		 */
+		title: varchar('title', {
 			length: 200
 		}).notNull(),
 
-		projectTagline: varchar('project_tagline', {
-			length: 500
-		}),
+		projectTagline: varchar(
+			'project_tagline',
+			{
+				length: 500
+			}
+		),
 
-		longDescription: text(
-			'long_description'
-		).notNull(),
+		/*
+		 * Fixture-compatible field:
+		 * fixture.summary -> projects.summary
+		 */
+		summary: text('summary'),
 
 		thumbnail: text('thumbnail'),
 
@@ -520,7 +482,9 @@ export const projects = pgTable(
 			'image_gallery'
 		).array(),
 
-		demoVideoUrl: text('demo_video_url'),
+		demoVideoUrl: text(
+			'demo_video_url'
+		),
 
 		repoUrl: text('repo_url'),
 
@@ -528,7 +492,9 @@ export const projects = pgTable(
 			'deployed_live_link'
 		),
 
-		techTags: text('tech_tags').array(),
+		techTags: text(
+			'tech_tags'
+		).array(),
 
 		status: varchar('status', {
 			length: 20
@@ -541,13 +507,19 @@ export const projects = pgTable(
 		})
 	},
 	(table) => ({
+		/*
+		 * ONE project per team.
+		 *
+		 * If a team submits again, the latest submission
+		 * replaces the previous one at fixture-seeding level.
+		 */
+		teamUnique: uniqueIndex(
+			'projects_team_id_unique_idx'
+		).on(table.teamId),
+
 		teamIndex: index(
 			'projects_team_id_idx'
 		).on(table.teamId),
-
-		stageIndex: index(
-			'projects_stage_id_idx'
-		).on(table.stageId),
 
 		trackIndex: index(
 			'projects_track_id_idx'
@@ -559,26 +531,206 @@ export const projects = pgTable(
 	})
 );
 
+/* -------------------------------------------------------------------------- */
+/* Custom Answers                                                             */
+/* -------------------------------------------------------------------------- */
+
 export const customAnswers = pgTable(
 	'custom_answers',
 	{
 		id: uuid('id').defaultRandom().primaryKey(),
+
 		projectId: uuid('project_id')
 			.notNull()
-			.references(() => projects.id, { onDelete: 'cascade' }),
+			.references(() => projects.id, {
+				onDelete: 'cascade'
+			}),
+
 		questionId: uuid('question_id')
 			.notNull()
-			.references(() => customQuestions.id, { onDelete: 'cascade' }),
+			.references(() => customQuestions.id, {
+				onDelete: 'cascade'
+			}),
+
 		answer: text('answer'),
-		createdAt: timestamp('created_at', { withTimezone: true })
+
+		createdAt: timestamp('created_at', {
+			withTimezone: true
+		})
 			.defaultNow()
 			.notNull()
 	},
 	(table) => ({
-		projectIndex: index('custom_answers_project_id_idx').on(table.projectId),
-		questionIndex: index('custom_answers_question_id_idx').on(table.questionId),
+		projectIndex: index(
+			'custom_answers_project_id_idx'
+		).on(table.projectId),
+
+		questionIndex: index(
+			'custom_answers_question_id_idx'
+		).on(table.questionId),
+
 		projectQuestionUnique: uniqueIndex(
 			'custom_answers_project_question_unique_idx'
-		).on(table.projectId, table.questionId)
+		).on(
+			table.projectId,
+			table.questionId
+		)
+	})
+);
+
+/* -------------------------------------------------------------------------- */
+/* Judge Track Eligibility                                                    */
+/* -------------------------------------------------------------------------- */
+
+export const judgeTrackEligibility = pgTable(
+	'judge_track_eligibility',
+	{
+		judgeId: uuid('judge_id')
+			.notNull()
+			.references(() => users.id, {
+				onDelete: 'cascade'
+			}),
+
+		trackId: uuid('track_id')
+			.notNull()
+			.references(() => tracks.id, {
+				onDelete: 'cascade'
+			})
+	},
+	(table) => ({
+		primaryKey: uniqueIndex(
+			'judge_track_eligibility_unique_idx'
+		).on(
+			table.judgeId,
+			table.trackId
+		),
+
+		judgeIndex: index(
+			'judge_track_eligibility_judge_id_idx'
+		).on(table.judgeId),
+
+		trackIndex: index(
+			'judge_track_eligibility_track_id_idx'
+		).on(table.trackId)
+	})
+);
+
+/* -------------------------------------------------------------------------- */
+/* Judge Assignments                                                          */
+/* -------------------------------------------------------------------------- */
+
+export const judgeAssignments = pgTable(
+	'judge_assignments',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+
+		judgeId: uuid('judge_id')
+			.notNull()
+			.references(() => users.id, {
+				onDelete: 'cascade'
+			}),
+
+		projectId: uuid('project_id')
+			.notNull()
+			.references(() => projects.id, {
+				onDelete: 'cascade'
+			}),
+
+		assignedAt: timestamp('assigned_at', {
+			withTimezone: true
+		})
+			.defaultNow()
+			.notNull()
+	},
+	(table) => ({
+		judgeProjectUnique: uniqueIndex(
+			'judge_assignments_judge_project_unique_idx'
+		).on(
+			table.judgeId,
+			table.projectId
+		),
+
+		judgeIndex: index(
+			'judge_assignments_judge_id_idx'
+		).on(table.judgeId),
+
+		projectIndex: index(
+			'judge_assignments_project_id_idx'
+		).on(table.projectId)
+	})
+);
+
+/* -------------------------------------------------------------------------- */
+/* Rubric Criteria                                                            */
+/* -------------------------------------------------------------------------- */
+
+export const rubricCriteria = pgTable(
+	'rubric_criteria',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+
+		name: varchar('name', {
+			length: 100
+		}).notNull(),
+
+		weight: integer('weight')
+			.notNull()
+			.default(1)
+	},
+	(table) => ({
+		nameUnique: uniqueIndex(
+			'rubric_criteria_name_unique_idx'
+		).on(table.name)
+	})
+);
+
+/* -------------------------------------------------------------------------- */
+/* Scores                                                                      */
+/* -------------------------------------------------------------------------- */
+
+export const scores = pgTable(
+	'scores',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+
+		judgeAssignmentId: uuid(
+			'judge_assignment_id'
+		)
+			.notNull()
+			.references(
+				() => judgeAssignments.id,
+				{
+					onDelete: 'cascade'
+				}
+			),
+
+		criterionId: uuid('criterion_id')
+			.notNull()
+			.references(
+				() => rubricCriteria.id,
+				{
+					onDelete: 'cascade'
+				}
+			),
+
+		score: integer('score').notNull(),
+
+		comment: text('comment')
+	},
+	(table) => ({
+		assignmentCriterionUnique: uniqueIndex(
+			'scores_assignment_criterion_unique_idx'
+		).on(
+			table.judgeAssignmentId,
+			table.criterionId
+		),
+
+		assignmentIndex: index(
+			'scores_judge_assignment_id_idx'
+		).on(table.judgeAssignmentId),
+
+		criterionIndex: index(
+			'scores_criterion_id_idx'
+		).on(table.criterionId)
 	})
 );
