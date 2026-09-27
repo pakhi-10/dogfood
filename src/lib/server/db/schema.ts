@@ -126,6 +126,11 @@ export const events = pgTable(
 	})
 );
 
+export const eventStatusEnum = pgEnum('event_status', [
+	'draft',
+	'live'
+]);
+
 export const tracks = pgTable(
 	'tracks',
 	{
@@ -283,6 +288,10 @@ export const projects = pgTable(
 		stageId: uuid('stage_id')
 			.notNull()
 			.references(() => stages.id, { onDelete: 'restrict' }),
+		
+		trackId: uuid('track_id')
+			.notNull()
+			.references(() => tracks.id),
 
 		projectName: varchar('project_name', { length: 200 }).notNull(),
 
@@ -306,9 +315,7 @@ export const projects = pgTable(
 			.notNull()
 			.default('draft'),
 
-		submittedAt: timestamp('submitted_at', {
-			withTimezone: true
-		}).defaultNow().notNull()
+		submittedAt: timestamp('submitted_at', { withTimezone: true }),
 	},
 	(table) => ({
 		teamIndex: index('projects_team_id_idx').on(table.teamId),
