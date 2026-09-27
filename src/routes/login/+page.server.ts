@@ -59,7 +59,9 @@ export const actions = {
 			secure: false,
 			expires: session.expiresAt
 		});
-
 		throw redirect(303, '/');
 	}
 };
+
+
+

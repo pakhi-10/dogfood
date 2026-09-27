@@ -10,5 +10,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	event.locals.user = await getUserFromSession(sessionToken);
 
+	console.log('CURRENT USER:', event.locals.user);
+
 	return resolve(event);
 };
