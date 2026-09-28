@@ -252,20 +252,29 @@ export const tracks = pgTable(
 /* -------------------------------------------------------------------------- */
 
 export const submissionForms = pgTable(
-	'submission_forms',
-	{
-		id: uuid('id').defaultRandom().primaryKey(),
+    'submission_forms',
+    {
+        id: uuid('id').defaultRandom().primaryKey(),
 
-		name: varchar('name', {
-			length: 200
-		}).notNull(),
+        eventId: uuid('event_id')
+            .notNull()
+            .references(() => events.id, {
+                onDelete: 'cascade'
+            }),
 
-		createdAt: timestamp('created_at', {
-			withTimezone: true
-		})
-			.defaultNow()
-			.notNull()
-	}
+        name: varchar('name', { length: 200 }).notNull(),
+
+        createdAt: timestamp('created_at', {
+            withTimezone: true
+        })
+            .defaultNow()
+            .notNull()
+    },
+    (table) => ({
+        eventIdIndex: index(
+            'submission_forms_event_id_idx'
+        ).on(table.eventId)
+    })
 );
 
 /* -------------------------------------------------------------------------- */
