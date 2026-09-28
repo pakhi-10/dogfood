@@ -18,10 +18,9 @@
 			const query = search.trim().toLowerCase();
 
 			const matchesSearch =
-				!query ||
-				user.name.toLowerCase().includes(query) ||
-				user.email.toLowerCase().includes(query) ||
-				(user.username?.toLowerCase().includes(query) ?? false);
+	!query ||
+	user.name.toLowerCase().includes(query) ||
+	(user.email?.toLowerCase().includes(query) ?? false);
 
 			const matchesRole =
 				roleFilter === 'all' || user.role === roleFilter;

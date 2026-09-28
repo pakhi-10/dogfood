@@ -9,7 +9,7 @@ import {
 	customQuestions,
 	teams,
 	teamMembers,
-	projects
+	projects,
 } from '$lib/server/db/schema';
 
 function requireLogin(locals: App.Locals) {
@@ -68,6 +68,9 @@ export const load = async ({ locals, params }) => {
 	/* ---------------------------------------------------------------------- */
 
 	if (user.role !== 'organizer') {
+		if (!user.email) {
+	throw error(400, 'User email is required');
+}
 		if (event.status !== 'live') {
 			throw error(404, 'Event not found');
 		}
@@ -145,6 +148,13 @@ export const load = async ({ locals, params }) => {
 		const applicationOpen =
 			!applicationNotOpenYet &&
 			!applicationClosed;
+		
+		const submissionClosed =
+	!!event.submissionsClose &&
+	now > new Date(event.submissionsClose);
+
+const submissionOpen =
+	!submissionClosed;
 
 		return {
 			view: 'participant' as const,
@@ -176,11 +186,14 @@ export const load = async ({ locals, params }) => {
 			applicationNotOpenYet,
 			applicationOpen,
 			applicationClosed,
+			submissionOpen,
+submissionClosed,
 
 			/*
 			 * Submission state
 			 */
 			hasProject
+			
 		};
 	}
 
@@ -796,25 +809,25 @@ export const actions = {
 			data.get('question') ?? ''
 		).trim();
 
-		const questionType = String(
-			data.get('questionType') ?? 'text'
-		);
+		const rawQuestionType = String(
+	data.get('questionType') ?? 'text'
+);
 
-		const required =
-			data.get('required') === 'true';
+const required =
+	data.get('required') === 'true';
 
-		const optionsText = String(
-			data.get('options') ?? ''
-		).trim();
+const optionsText = String(
+	data.get('options') ?? ''
+).trim();
 
-		const allowedTypes = [
-			'text',
-			'textarea',
-			'number',
-			'select',
-			'radio',
-			'checkbox'
-		];
+const allowedTypes = [
+	'text',
+	'textarea',
+	'number',
+	'select',
+	'radio',
+	'checkbox'
+] as const;
 
 		if (!formId) {
 			return {
@@ -832,13 +845,18 @@ export const actions = {
 		}
 
 		if (
-			!allowedTypes.includes(questionType)
-		) {
-			return {
-				success: false,
-				error: 'Invalid question type.'
-			};
-		}
+	!allowedTypes.includes(
+		rawQuestionType as (typeof allowedTypes)[number]
+	)
+) {
+	return {
+		success: false,
+		error: 'Invalid question type.'
+	};
+}
+
+const questionType =
+	rawQuestionType as (typeof allowedTypes)[number];
 
 		const [form] = await db
 			.select({

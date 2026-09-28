@@ -116,11 +116,17 @@ export const load = async ({ locals, params, url }) => {
 		throw redirect(303, '/events');
 	}
 
+	if (!locals.user.email) {
+	throw error(400, 'User email is required');
+}
+
+const email = locals.user.email;
+
 	const event = await getLiveEvent(params.id);
 
 	const membership = await getCurrentMembership(
 		event.id,
-		locals.user.email
+		email
 	);
 
 	const inviteToken =
@@ -207,7 +213,7 @@ export const load = async ({ locals, params, url }) => {
 			members.some(
 				(member) =>
 					member.email ===
-					locals.user.email
+					email
 			);
 
 		return {
@@ -250,7 +256,7 @@ export const load = async ({ locals, params, url }) => {
 
 	const isLeader =
 		membership.leaderEmail ===
-		locals.user.email;
+		email;
 
 	return {
 		user: locals.user,
@@ -285,6 +291,15 @@ export const actions = {
 			});
 		}
 
+		if (!locals.user.email) {
+	return fail(400, {
+		success: false,
+		error: 'User email is required.'
+	});
+}
+
+const email = locals.user.email;
+
 		const event = await getLiveEvent(params.id);
 
 		if (!(await applicationIsOpen(event))) {
@@ -298,7 +313,7 @@ export const actions = {
 		const existingMembership =
 			await getCurrentMembership(
 				event.id,
-				locals.user.email
+				email
 			);
 
 		if (existingMembership) {
@@ -354,7 +369,7 @@ export const actions = {
 				eventId: event.id,
 				teamName,
 				leaderEmail:
-					locals.user.email,
+					email,
 				leaderMobileNumber: ''
 			})
 			.returning({
@@ -365,7 +380,7 @@ export const actions = {
 			.insert(teamMembers)
 			.values({
 				teamId: team.id,
-				userEmail: locals.user.email
+				userEmail: email
 			});
 
 		throw redirect(
@@ -388,6 +403,14 @@ export const actions = {
 				error: 'Participants only.'
 			});
 		}
+		if (!locals.user.email) {
+	return fail(400, {
+		success: false,
+		error: 'User email is required.'
+	});
+}
+
+const email = locals.user.email;
 
 		const event = await getLiveEvent(params.id);
 
@@ -402,7 +425,7 @@ export const actions = {
 		const membership =
 			await getCurrentMembership(
 				event.id,
-				locals.user.email
+				email
 			);
 
 		if (!membership) {
@@ -415,7 +438,7 @@ export const actions = {
 
 		if (
 			membership.leaderEmail !==
-			locals.user.email
+			email
 		) {
 			return fail(403, {
 				success: false,
@@ -492,6 +515,15 @@ export const actions = {
 			});
 		}
 
+		if (!locals.user.email) {
+	return fail(400, {
+		success: false,
+		error: 'User email is required.'
+	});
+}
+
+const email = locals.user.email;
+
 		const event = await getLiveEvent(params.id);
 
 		if (!(await applicationIsOpen(event))) {
@@ -518,7 +550,7 @@ export const actions = {
 		const existingMembership =
 			await getCurrentMembership(
 				event.id,
-				locals.user.email
+				email
 			);
 
 		if (existingMembership) {
@@ -601,7 +633,7 @@ export const actions = {
 			.insert(teamMembers)
 			.values({
 				teamId: invite.teamId,
-				userEmail: locals.user.email
+				userEmail: email
 			});
 
 		throw redirect(
@@ -626,6 +658,15 @@ export const actions = {
 			});
 		}
 
+		if (!locals.user.email) {
+	return fail(400, {
+		success: false,
+		error: 'User email is required.'
+	});
+}
+
+const email = locals.user.email;
+
 		const event = await getLiveEvent(params.id);
 
 		if (!(await applicationIsOpen(event))) {
@@ -639,7 +680,7 @@ export const actions = {
 		const membership =
 			await getCurrentMembership(
 				event.id,
-				locals.user.email
+				email
 			);
 
 		if (!membership) {
@@ -651,7 +692,7 @@ export const actions = {
 
 		if (
 			membership.leaderEmail !==
-			locals.user.email
+			email
 		) {
 			return fail(403, {
 				success: false,
@@ -738,6 +779,15 @@ export const actions = {
 			});
 		}
 
+		if (!locals.user.email) {
+	return fail(400, {
+		success: false,
+		error: 'User email is required.'
+	});
+}
+
+const email = locals.user.email;
+
 		const event = await getLiveEvent(params.id);
 
 		if (!(await applicationIsOpen(event))) {
@@ -751,7 +801,7 @@ export const actions = {
 		const membership =
 			await getCurrentMembership(
 				event.id,
-				locals.user.email
+				email
 			);
 
 		if (!membership) {
@@ -763,7 +813,7 @@ export const actions = {
 
 		if (
 			membership.leaderEmail !==
-			locals.user.email
+			email
 		) {
 			return fail(403, {
 				success: false,

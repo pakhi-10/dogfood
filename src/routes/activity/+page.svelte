@@ -168,7 +168,7 @@
 								</span>
 							</div>
 
-							<h3>{project.projectName}</h3>
+							<h3>{project.title}</h3>
 
 							{#if project.projectTagline}
 								<p>{project.projectTagline}</p>

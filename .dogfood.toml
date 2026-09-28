@@ -2,14 +2,14 @@
 base_url = "http://localhost:5173"
 
 [tiers]
-claimed = ["T1"]
+claimed = ["T1", "T2"]
 pitch = "A self-hostable hackathon portal with role-based authentication, event management, team formation, project submissions, and a public project gallery."
 
 [auth]
-organizer = "Cookie: session=REPLACE_ORGANIZER"
-judge_a = "Cookie: session=REPLACE_JUDGE_A"
-judge_b = "Cookie: session=REPLACE_JUDGE_B"
-participant = "Cookie: session=REPLACE_PARTICIPANT"
+organizer = "Cookie: session=056b92f1b44c265ee1bce9d7bec383b297014037ad7e018fdf7f76ae0f505753"
+judge_a = "Cookie: session=e28cca6bf34fd3191308c0078519973c3e3470dad05a83a883d1d402286e5961"
+judge_b = "Cookie: session=7b5f6029a9b0a32f9b21098b2680e8e8189e78be3145d24d350ba36f138e38ad"
+participant = "Cookie: session=ae1bc64f4ddcb367d768800f40fed5ff4110b744bb93ec51c134e820879e003e"
 
 [routes]
 gallery = "/projects"

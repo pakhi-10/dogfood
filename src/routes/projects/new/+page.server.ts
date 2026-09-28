@@ -1,5 +1,5 @@
-import { fail, redirect } from '@sveltejs/kit';
-import { and, asc, eq } from 'drizzle-orm';
+import { error, fail, redirect } from '@sveltejs/kit';
+import { count, and, asc, eq } from 'drizzle-orm';
 
 import { db } from '$lib/server/db';
 import {
@@ -62,154 +62,197 @@ async function getTeamForUser(
 }
 
 export const load = async ({ locals, url }) => {
-    const user = await requireParticipant(
-        locals
-    );
+	const user = await requireParticipant(locals);
 
-    const eventId =
-        url.searchParams.get('eventId') ?? '';
+	const eventId =
+		url.searchParams.get('eventId') ?? '';
 
-    if (!eventId) {
-        return {
-            event: null,
-            tracks: [],
-            forms: [],
-            questions: [],
-            project: null,
-            error:
-                'Select an event before creating a submission.'
-        };
-    }
+	if (!eventId) {
+		return {
+			user,
+			event: null,
+			tracks: [],
+			forms: [],
+			questions: [],
+			project: null,
+			answers: [],
+			team: null,
+			teamMemberCount: 0,
+			submissionOpen: false,
+			submissionClosed: false,
+			error:
+				'Select an event before creating a submission.'
+		};
+	}
 
-    const [event] = await db
-        .select()
-        .from(events)
-        .where(
-            and(
-                eq(events.id, eventId),
-                eq(events.status, 'live')
-            )
-        )
-        .limit(1);
+	const [event] = await db
+		.select()
+		.from(events)
+		.where(
+			and(
+				eq(events.id, eventId),
+				eq(events.status, 'live')
+			)
+		)
+		.limit(1);
 
-    if (!event) {
-        return {
-            event: null,
-            tracks: [],
-            forms: [],
-            questions: [],
-            project: null,
-            error: 'Event not found.'
-        };
-    }
+	if (!event) {
+		return {
+			user,
+			event: null,
+			tracks: [],
+			forms: [],
+			questions: [],
+			project: null,
+			answers: [],
+			team: null,
+			teamMemberCount: 0,
+			submissionOpen: false,
+			submissionClosed: false,
+			error: 'Event not found.'
+		};
+	}
 
-    const team = await getTeamForUser(
-        user.email,
-        event.id
-    );
+	if (!user.email) {
+		throw error(400, 'User email is required');
+	}
 
-    if (!team) {
-        throw redirect(
-            303,
-            `/events/${event.id}/apply`
-        );
-    }
+	const email = user.email;
 
-    const eventTracks = await db
-        .select({
-            id: tracks.id,
-            name: tracks.name,
-            description: tracks.description
-        })
-        .from(tracks)
-        .where(eq(tracks.eventId, event.id))
-        .orderBy(asc(tracks.name));
+	const team = await getTeamForUser(
+		email,
+		eventId
+	);
 
-    const forms = await db
-        .select({
-            id: submissionForms.id,
-            name: submissionForms.name
-        })
-        .from(submissionForms)
-        .where(
-            eq(
-                submissionForms.eventId,
-                event.id
-            )
-        )
-        .orderBy(asc(submissionForms.name));
+	if (!team) {
+		throw redirect(
+			303,
+			`/events/${event.id}/apply`
+		);
+	}
 
-    const questions = await db
-        .select({
-            id: customQuestions.id,
-            formId: customQuestions.formId,
-            question: customQuestions.question,
-            questionType:
-                customQuestions.questionType,
-            required: customQuestions.required,
-            options: customQuestions.options,
-            formName: submissionForms.name
-        })
-        .from(customQuestions)
-        .innerJoin(
-            submissionForms,
-            eq(
-                customQuestions.formId,
-                submissionForms.id
-            )
-        )
-        .where(
-            eq(
-                submissionForms.eventId,
-                event.id
-            )
-        )
-        .orderBy(
-            asc(submissionForms.name),
-            asc(customQuestions.createdAt)
-        );
+	const [memberCountResult] = await db
+		.select({
+			count: count()
+		})
+		.from(teamMembers)
+		.where(
+			eq(
+				teamMembers.teamId,
+				team.id
+			)
+		);
 
-    const [existingProject] = await db
-        .select()
-        .from(projects)
-        .where(
-            eq(
-                projects.teamId,
-                team.id
-            )
-        )
-        .limit(1);
+	const teamMemberCount =
+		memberCountResult?.count ?? 0;
 
-    let existingAnswers: {
-        questionId: string;
-        answer: string | null;
-    }[] = [];
+	const submissionClosed =
+		!!event.submissionsClose &&
+		new Date() >
+			new Date(event.submissionsClose);
 
-    if (existingProject) {
-        existingAnswers = await db
-            .select({
-                questionId:
-                    customAnswers.questionId,
-                answer: customAnswers.answer
-            })
-            .from(customAnswers)
-            .where(
-                eq(
-                    customAnswers.projectId,
-                    existingProject.id
-                )
-            );
-    }
+	const submissionOpen =
+		!submissionClosed;
 
-    return {
-        event,
-        tracks: eventTracks,
-        forms,
-        questions,
-        project: existingProject ?? null,
-        answers: existingAnswers,
-        team
-    };
+	const eventTracks = await db
+		.select({
+			id: tracks.id,
+			name: tracks.name,
+			description: tracks.description
+		})
+		.from(tracks)
+		.where(eq(tracks.eventId, event.id))
+		.orderBy(asc(tracks.name));
+
+	const forms = await db
+		.select({
+			id: submissionForms.id,
+			name: submissionForms.name
+		})
+		.from(submissionForms)
+		.where(
+			eq(
+				submissionForms.eventId,
+				event.id
+			)
+		)
+		.orderBy(asc(submissionForms.name));
+
+	const questions = await db
+		.select({
+			id: customQuestions.id,
+			formId: customQuestions.formId,
+			question: customQuestions.question,
+			questionType:
+				customQuestions.questionType,
+			required: customQuestions.required,
+			options: customQuestions.options,
+			formName: submissionForms.name
+		})
+		.from(customQuestions)
+		.innerJoin(
+			submissionForms,
+			eq(
+				customQuestions.formId,
+				submissionForms.id
+			)
+		)
+		.where(
+			eq(
+				submissionForms.eventId,
+				event.id
+			)
+		)
+		.orderBy(
+			asc(submissionForms.name),
+			asc(customQuestions.createdAt)
+		);
+
+	const [existingProject] = await db
+		.select()
+		.from(projects)
+		.where(
+			eq(
+				projects.teamId,
+				team.id
+			)
+		)
+		.limit(1);
+
+	let existingAnswers: {
+		questionId: string;
+		answer: string | null;
+	}[] = [];
+
+	if (existingProject) {
+		existingAnswers = await db
+			.select({
+				questionId:
+					customAnswers.questionId,
+				answer: customAnswers.answer
+			})
+			.from(customAnswers)
+			.where(
+				eq(
+					customAnswers.projectId,
+					existingProject.id
+				)
+			);
+	}
+
+	return {
+		user,
+		event,
+		tracks: eventTracks,
+		forms,
+		questions,
+		project: existingProject ?? null,
+		answers: existingAnswers,
+		team,
+		teamMemberCount,
+		submissionOpen,
+		submissionClosed
+	};
 };
 
 export const actions = {
@@ -232,16 +275,16 @@ export const actions = {
             form.get('trackId') ?? ''
         ).trim();
 
-        const projectName = String(
-            form.get('projectName') ?? ''
+        const title = String(
+            form.get('title') ?? ''
         ).trim();
 
         const projectTagline = String(
             form.get('projectTagline') ?? ''
         ).trim();
 
-        const longDescription = String(
-            form.get('longDescription') ?? ''
+        const summary = String(
+            form.get('summary') ?? ''
         ).trim();
 
         const repoUrl = String(
@@ -255,8 +298,8 @@ export const actions = {
         if (
             !eventId ||
             !trackId ||
-            !projectName ||
-            !longDescription
+            !title ||
+            !summary
         ) {
             return fail(400, {
                 success: false,
@@ -265,8 +308,14 @@ export const actions = {
             });
         }
 
+
+        if (!user.email) {
+	throw error(400, 'User email is required');
+}
+
+const email = user.email
         const team = await getTeamForUser(
-            user.email,
+            email,
             eventId
         );
 
@@ -323,10 +372,10 @@ export const actions = {
                 .update(projects)
                 .set({
                     trackId,
-                    projectName,
+                    title,
                     projectTagline:
                         projectTagline || null,
-                    longDescription,
+                    summary,
                     repoUrl:
                         repoUrl || null,
                     demoVideoUrl:
@@ -346,10 +395,10 @@ export const actions = {
                 .values({
                     teamId: team.id,
                     trackId,
-                    projectName,
+                    title,
                     projectTagline:
                         projectTagline || null,
-                    longDescription,
+                    summary,
                     repoUrl:
                         repoUrl || null,
                     demoVideoUrl:
@@ -392,19 +441,19 @@ export const actions = {
             form.get('trackId') ?? ''
         ).trim();
 
-        const projectName = String(
-            form.get('projectName') ?? ''
+        const title = String(
+            form.get('title') ?? ''
         ).trim();
 
-        const longDescription = String(
-            form.get('longDescription') ?? ''
+        const summary = String(
+            form.get('summary') ?? ''
         ).trim();
 
         if (
             !eventId ||
             !trackId ||
-            !projectName ||
-            !longDescription
+            !title ||
+            !summary
         ) {
             return fail(400, {
                 success: false,
@@ -449,9 +498,15 @@ export const actions = {
             });
         }
 
+        if (!user.email) {
+        throw error(400, 'User email is required');
+        }
+
+        const email = user.email;
+
         const team = await getTeamForUser(
-            user.email,
-            eventId
+            email,
+            event.id
         );
 
         if (!team) {
@@ -518,7 +573,7 @@ export const actions = {
                 .update(projects)
                 .set({
                     trackId,
-                    projectName,
+                    title,
                     projectTagline:
                         String(
                             form.get(
@@ -526,7 +581,7 @@ export const actions = {
                             ) ?? ''
                         ).trim() ||
                         null,
-                    longDescription,
+                    summary,
                     repoUrl:
                         String(
                             form.get(
@@ -558,7 +613,7 @@ export const actions = {
                 .values({
                     teamId: team.id,
                     trackId,
-                    projectName,
+                    title,
                     projectTagline:
                         String(
                             form.get(
@@ -566,7 +621,7 @@ export const actions = {
                             ) ?? ''
                         ).trim() ||
                         null,
-                    longDescription,
+                    summary,
                     repoUrl:
                         String(
                             form.get(

@@ -45,7 +45,8 @@ export const load = async ({ locals }) => {
         .orderBy(desc(events.createdAt));
 
     return {
-        events: eventRows
+        events: eventRows,
+        user
     };
 };
 

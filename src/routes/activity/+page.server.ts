@@ -38,7 +38,7 @@ export const load = async ({ cookies }) => {
 	const projectRows = await db
 		.select({
 			id: projects.id,
-			projectName: projects.projectName,
+			title: projects.title,
 			projectTagline: projects.projectTagline,
 			status: projects.status,
 			submittedAt: projects.submittedAt,

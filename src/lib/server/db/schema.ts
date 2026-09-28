@@ -252,29 +252,31 @@ export const tracks = pgTable(
 /* -------------------------------------------------------------------------- */
 
 export const submissionForms = pgTable(
-    'submission_forms',
-    {
-        id: uuid('id').defaultRandom().primaryKey(),
+	'submission_forms',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
 
-        eventId: uuid('event_id')
-            .notNull()
-            .references(() => events.id, {
-                onDelete: 'cascade'
-            }),
+		eventId: uuid('event_id')
+			.notNull()
+			.references(() => events.id, {
+				onDelete: 'cascade'
+			}),
 
-        name: varchar('name', { length: 200 }).notNull(),
+		name: varchar('name', {
+			length: 200
+		}).notNull(),
 
-        createdAt: timestamp('created_at', {
-            withTimezone: true
-        })
-            .defaultNow()
-            .notNull()
-    },
-    (table) => ({
-        eventIdIndex: index(
-            'submission_forms_event_id_idx'
-        ).on(table.eventId)
-    })
+		createdAt: timestamp('created_at', {
+			withTimezone: true
+		})
+			.defaultNow()
+			.notNull()
+	},
+	(table) => ({
+		eventIdIndex: index(
+			'submission_forms_event_id_idx'
+		).on(table.eventId)
+	})
 );
 
 /* -------------------------------------------------------------------------- */
@@ -464,10 +466,6 @@ export const projects = pgTable(
 				onDelete: 'restrict'
 			}),
 
-		/*
-		 * Fixture-compatible field:
-		 * fixture.title -> projects.title
-		 */
 		title: varchar('title', {
 			length: 200
 		}).notNull(),
@@ -479,10 +477,6 @@ export const projects = pgTable(
 			}
 		),
 
-		/*
-		 * Fixture-compatible field:
-		 * fixture.summary -> projects.summary
-		 */
 		summary: text('summary'),
 
 		thumbnail: text('thumbnail'),
@@ -517,17 +511,14 @@ export const projects = pgTable(
 	},
 	(table) => ({
 		/*
-		 * ONE project per team.
+		 * A team can have only one project.
 		 *
-		 * If a team submits again, the latest submission
-		 * replaces the previous one at fixture-seeding level.
+		 * Team identity is determined by team_id, not team_name.
+		 * Therefore teams with the same name but different IDs
+		 * are still separate teams and may each have one project.
 		 */
 		teamUnique: uniqueIndex(
 			'projects_team_id_unique_idx'
-		).on(table.teamId),
-
-		teamIndex: index(
-			'projects_team_id_idx'
 		).on(table.teamId),
 
 		trackIndex: index(
@@ -649,7 +640,9 @@ export const judgeAssignments = pgTable(
 			withTimezone: true
 		})
 			.defaultNow()
-			.notNull()
+			.notNull(),
+
+		comment: text('comment')
 	},
 	(table) => ({
 		judgeProjectUnique: uniqueIndex(
@@ -678,18 +671,35 @@ export const rubricCriteria = pgTable(
 	{
 		id: uuid('id').defaultRandom().primaryKey(),
 
+		eventId: uuid('event_id')
+			.notNull()
+			.references(() => events.id, {
+				onDelete: 'cascade'
+			}),
+
 		name: varchar('name', {
 			length: 100
 		}).notNull(),
 
 		weight: integer('weight')
 			.notNull()
-			.default(1)
+			.default(1),
+
+		maxScore: integer('max_score')
+			.notNull()
+			.default(10)
 	},
 	(table) => ({
+		eventIndex: index(
+			'rubric_criteria_event_id_idx'
+		).on(table.eventId),
+
 		nameUnique: uniqueIndex(
-			'rubric_criteria_name_unique_idx'
-		).on(table.name)
+			'rubric_criteria_event_name_unique_idx'
+		).on(
+			table.eventId,
+			table.name
+		)
 	})
 );
 
@@ -722,9 +732,7 @@ export const scores = pgTable(
 				}
 			),
 
-		score: integer('score').notNull(),
-
-		comment: text('comment')
+		score: integer('score').notNull()
 	},
 	(table) => ({
 		assignmentCriterionUnique: uniqueIndex(
@@ -741,5 +749,49 @@ export const scores = pgTable(
 		criterionIndex: index(
 			'scores_criterion_id_idx'
 		).on(table.criterionId)
+	})
+);
+
+/* -------------------------------------------------------------------------- */
+/* Judge Invites                                                              */
+/* -------------------------------------------------------------------------- */
+
+export const judgeInvites = pgTable(
+	'judge_invites',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+
+		judgeId: uuid('judge_id')
+			.notNull()
+			.references(() => users.id, {
+				onDelete: 'cascade'
+			}),
+
+		tokenHash: varchar('token_hash', {
+			length: 128
+		}).notNull(),
+
+		expiresAt: timestamp('expires_at', {
+			withTimezone: true
+		}),
+
+		createdAt: timestamp('created_at', {
+			withTimezone: true
+		})
+			.defaultNow()
+			.notNull()
+	},
+	(table) => ({
+		tokenUnique: uniqueIndex(
+			'judge_invites_token_hash_unique_idx'
+		).on(table.tokenHash),
+
+		judgeIndex: index(
+			'judge_invites_judge_id_idx'
+		).on(table.judgeId),
+
+		expiresIndex: index(
+			'judge_invites_expires_at_idx'
+		).on(table.expiresAt)
 	})
 );
