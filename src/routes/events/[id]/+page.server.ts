@@ -5,26 +5,41 @@ import { db } from '$lib/server/db';
 import {
 	events,
 	tracks,
-	stages,
 	submissionForms,
-	customQuestions
+	customQuestions,
+	teams,
+	teamMembers,
+	projects
 } from '$lib/server/db/schema';
 
-function requireOrganizer(locals: App.Locals) {
+function requireLogin(locals: App.Locals) {
 	const user = locals.user;
 
 	if (!user) {
 		throw redirect(303, '/login');
 	}
 
-	if (user.role !== 'organizer') {
-		throw error(403, 'Forbidden');
-	}
-
 	return user;
 }
 
-async function getOwnedEvent(eventId: string, userId: string) {
+async function getEvent(eventId: string) {
+	const [event] = await db
+		.select()
+		.from(events)
+		.where(eq(events.id, eventId))
+		.limit(1);
+
+	if (!event) {
+		throw error(404, 'Event not found');
+	}
+
+	return event;
+}
+
+async function getOwnedEvent(
+	eventId: string,
+	userId: string
+) {
 	const [event] = await db
 		.select()
 		.from(events)
@@ -44,36 +59,149 @@ async function getOwnedEvent(eventId: string, userId: string) {
 }
 
 export const load = async ({ locals, params }) => {
-	const user = requireOrganizer(locals);
+	const user = requireLogin(locals);
 
-	const event = await getOwnedEvent(params.id, user.id);
+	const event = await getEvent(params.id);
+
+	/* ---------------------------------------------------------------------- */
+	/* PARTICIPANT VIEW                                                       */
+	/* ---------------------------------------------------------------------- */
+
+	if (user.role !== 'organizer') {
+		if (event.status !== 'live') {
+			throw error(404, 'Event not found');
+		}
+
+		const eventTracks = await db
+			.select({
+				id: tracks.id,
+				name: tracks.name,
+				description: tracks.description
+			})
+			.from(tracks)
+			.where(eq(tracks.eventId, event.id))
+			.orderBy(asc(tracks.name));
+
+		/*
+		 * Find whether this participant is already part of a team
+		 * for this event.
+		 *
+		 * The registered account email is the identity used here.
+		 */
+		const [membership] = await db
+			.select({
+				teamId: teamMembers.teamId,
+				teamName: teams.teamName,
+				leaderEmail: teams.leaderEmail
+			})
+			.from(teamMembers)
+			.innerJoin(
+				teams,
+				eq(teamMembers.teamId, teams.id)
+			)
+			.where(
+				and(
+					eq(
+						teamMembers.userEmail,
+						user.email
+					),
+					eq(
+						teams.eventId,
+						event.id
+					)
+				)
+			)
+			.limit(1);
+
+		let hasProject = false;
+
+		if (membership) {
+			const [project] = await db
+				.select({
+					id: projects.id
+				})
+				.from(projects)
+				.where(
+					eq(
+						projects.teamId,
+						membership.teamId
+					)
+				)
+				.limit(1);
+
+			hasProject = !!project;
+		}
+
+		const now = new Date();
+
+		const applicationNotOpenYet =
+			!!event.applicationOpenAt &&
+			now < new Date(event.applicationOpenAt);
+
+		const applicationClosed =
+			!!event.applicationCloseAt &&
+			now > new Date(event.applicationCloseAt);
+
+		const applicationOpen =
+			!applicationNotOpenYet &&
+			!applicationClosed;
+
+		return {
+			view: 'participant' as const,
+
+			event,
+
+			tracks: eventTracks,
+
+			/*
+			 * Application / team state
+			 */
+			alreadyApplied: !!membership,
+
+			team: membership
+				? {
+						id: membership.teamId,
+						name: membership.teamName,
+						leaderEmail:
+							membership.leaderEmail,
+						isLeader:
+							membership.leaderEmail ===
+							user.email
+					}
+				: null,
+
+			/*
+			 * Timing state
+			 */
+			applicationNotOpenYet,
+			applicationOpen,
+			applicationClosed,
+
+			/*
+			 * Submission state
+			 */
+			hasProject
+		};
+	}
+
+	/* ---------------------------------------------------------------------- */
+	/* ORGANIZER VIEW                                                         */
+	/* ---------------------------------------------------------------------- */
+
+	const ownedEvent = await getOwnedEvent(
+		params.id,
+		user.id
+	);
 
 	const eventTracks = await db
 		.select({
 			id: tracks.id,
-			name: tracks.name
+			name: tracks.name,
+			description: tracks.description
 		})
 		.from(tracks)
-		.where(eq(tracks.eventId, event.id))
+		.where(eq(tracks.eventId, ownedEvent.id))
 		.orderBy(asc(tracks.name));
-
-	const eventStages = await db
-		.select({
-			id: stages.id,
-			name: stages.name,
-			trackId: stages.trackId,
-			trackName: tracks.name,
-			formId: stages.formId,
-			formName: submissionForms.name
-		})
-		.from(stages)
-		.innerJoin(tracks, eq(stages.trackId, tracks.id))
-		.innerJoin(
-			submissionForms,
-			eq(stages.formId, submissionForms.id)
-		)
-		.where(eq(tracks.eventId, event.id))
-		.orderBy(asc(stages.name));
 
 	const forms = await db
 		.select({
@@ -81,15 +209,11 @@ export const load = async ({ locals, params }) => {
 			name: submissionForms.name
 		})
 		.from(submissionForms)
-		.innerJoin(
-			stages,
-			eq(stages.formId, submissionForms.id)
-		)
-		.innerJoin(tracks, eq(stages.trackId, tracks.id))
-		.where(eq(tracks.eventId, event.id))
-		.groupBy(
-			submissionForms.id,
-			submissionForms.name
+		.where(
+			eq(
+				submissionForms.eventId,
+				ownedEvent.id
+			)
 		)
 		.orderBy(asc(submissionForms.name));
 
@@ -98,7 +222,8 @@ export const load = async ({ locals, params }) => {
 			id: customQuestions.id,
 			formId: customQuestions.formId,
 			question: customQuestions.question,
-			questionType: customQuestions.questionType,
+			questionType:
+				customQuestions.questionType,
 			required: customQuestions.required,
 			options: customQuestions.options,
 			formName: submissionForms.name
@@ -106,58 +231,106 @@ export const load = async ({ locals, params }) => {
 		.from(customQuestions)
 		.innerJoin(
 			submissionForms,
-			eq(customQuestions.formId, submissionForms.id)
+			eq(
+				customQuestions.formId,
+				submissionForms.id
+			)
 		)
-		.innerJoin(
-			stages,
-			eq(stages.formId, submissionForms.id)
+		.where(
+			eq(
+				submissionForms.eventId,
+				ownedEvent.id
+			)
 		)
-		.innerJoin(
-			tracks,
-			eq(stages.trackId, tracks.id)
-		)
-		.where(eq(tracks.eventId, event.id))
-		.groupBy(
-			customQuestions.id,
-			customQuestions.formId,
-			customQuestions.question,
-			customQuestions.questionType,
-			customQuestions.required,
-			customQuestions.options,
-			submissionForms.name
-		)
-		.orderBy(asc(customQuestions.question));
+		.orderBy(
+			asc(customQuestions.createdAt)
+		);
 
 	return {
-		event,
+		view: 'organizer' as const,
+		event: ownedEvent,
 		tracks: eventTracks,
-		stages: eventStages,
 		forms,
 		questions
 	};
 };
 
 export const actions = {
-	saveEvent: async ({ request, locals, params }) => {
-		const user = requireOrganizer(locals);
-		const event = await getOwnedEvent(params.id, user.id);
+	/* ---------------------------------------------------------------------- */
+	/* SAVE EVENT                                                             */
+	/* ---------------------------------------------------------------------- */
+
+	saveEvent: async ({
+		request,
+		locals,
+		params
+	}) => {
+		const user = requireLogin(locals);
+
+		if (user.role !== 'organizer') {
+			throw error(403, 'Forbidden');
+		}
+
+		const event = await getOwnedEvent(
+			params.id,
+			user.id
+		);
 
 		const data = await request.formData();
 
-		const name = String(data.get('name') ?? '').trim();
-		const tagline = String(data.get('tagline') ?? '').trim();
-		const about = String(data.get('about') ?? '').trim();
+		const name = String(
+			data.get('name') ?? ''
+		).trim();
+
+		const tagline = String(
+			data.get('tagline') ?? ''
+		).trim();
+
+		const about = String(
+			data.get('about') ?? ''
+		).trim();
+
+		const logo = String(
+			data.get('logo') ?? ''
+		).trim();
+
 		const websiteLink = String(
 			data.get('websiteLink') ?? ''
 		).trim();
+
 		const contactEmail = String(
 			data.get('contactEmail') ?? ''
 		).trim();
-		const logo = String(data.get('logo') ?? '').trim();
-		const prizes = String(data.get('prizes') ?? '').trim();
 
-		const minTeamSize = Number(data.get('minTeamSize'));
-		const maxTeamSize = Number(data.get('maxTeamSize'));
+		const prizes = String(
+			data.get('prizes') ?? ''
+		).trim();
+
+		const minTeamSize = Number(
+			data.get('minTeamSize')
+		);
+
+		const maxTeamSize = Number(
+			data.get('maxTeamSize')
+		);
+
+		const parseDate = (
+			value: FormDataEntryValue | null
+		) => {
+			const stringValue = String(
+				value ?? ''
+			).trim();
+
+			if (!stringValue) {
+				return null;
+			}
+
+			const date = new Date(stringValue);
+
+			return Number.isNaN(date.getTime())
+				? null
+				: date;
+		};
 
 		if (!name) {
 			return {
@@ -180,17 +353,14 @@ export const actions = {
 			};
 		}
 
-		if (!contactEmail) {
+		if (
+			!Number.isInteger(minTeamSize) ||
+			minTeamSize < 1
+		) {
 			return {
 				success: false,
-				error: 'Contact email is required.'
-			};
-		}
-
-		if (!Number.isInteger(minTeamSize) || minTeamSize < 1) {
-			return {
-				success: false,
-				error: 'Minimum team size must be at least 1.'
+				error:
+					'Minimum team size is invalid.'
 			};
 		}
 
@@ -205,69 +375,44 @@ export const actions = {
 			};
 		}
 
-		const applicationOpenAt = data.get('applicationOpenAt')
-			? new Date(String(data.get('applicationOpenAt')))
-			: null;
-
-		const applicationCloseAt = data.get('applicationCloseAt')
-			? new Date(String(data.get('applicationCloseAt')))
-			: null;
-
-		const judgingStartAt = data.get('judgingStartAt')
-			? new Date(String(data.get('judgingStartAt')))
-			: null;
-
-		const judgingDeadline = data.get('judgingDeadline')
-			? new Date(String(data.get('judgingDeadline')))
-			: null;
-
-		const resultAnnouncement = data.get('resultAnnouncement')
-			? new Date(String(data.get('resultAnnouncement')))
-			: null;
-
-		const dates = [
-			applicationOpenAt,
-			applicationCloseAt,
-			judgingStartAt,
-			judgingDeadline,
-			resultAnnouncement
-		];
-
-		if (
-			dates.some(
-				(date) =>
-					date !== null &&
-					Number.isNaN(date.getTime())
-			)
-		) {
-			return {
-				success: false,
-				error: 'One or more dates are invalid.'
-			};
-		}
-
 		await db
 			.update(events)
 			.set({
 				name,
 				tagline,
 				about,
+				logo,
 				websiteLink,
 				contactEmail,
-				logo,
 				prizes,
 				minTeamSize,
 				maxTeamSize,
-				applicationOpenAt,
-				applicationCloseAt,
-				judgingStartAt,
-				judgingDeadline,
-				resultAnnouncement
+				applicationOpenAt: parseDate(
+					data.get('applicationOpenAt')
+				),
+				applicationCloseAt: parseDate(
+					data.get('applicationCloseAt')
+				),
+				submissionsClose: parseDate(
+					data.get('submissionsClose')
+				),
+				judgingStartAt: parseDate(
+					data.get('judgingStartAt')
+				),
+				judgingDeadline: parseDate(
+					data.get('judgingDeadline')
+				),
+				resultAnnouncement: parseDate(
+					data.get('resultAnnouncement')
+				)
 			})
 			.where(
 				and(
 					eq(events.id, event.id),
-					eq(events.organizerId, user.id)
+					eq(
+						events.organizerId,
+						user.id
+					)
 				)
 			);
 
@@ -277,19 +422,44 @@ export const actions = {
 		};
 	},
 
-	saveTeamFormation: async ({ request, locals, params }) => {
-		const user = requireOrganizer(locals);
-		const event = await getOwnedEvent(params.id, user.id);
+	/* ---------------------------------------------------------------------- */
+	/* SAVE TEAM FORMATION                                                    */
+	/* ---------------------------------------------------------------------- */
+
+	saveTeamFormation: async ({
+		request,
+		locals,
+		params
+	}) => {
+		const user = requireLogin(locals);
+
+		if (user.role !== 'organizer') {
+			throw error(403, 'Forbidden');
+		}
+
+		const event = await getOwnedEvent(
+			params.id,
+			user.id
+		);
 
 		const data = await request.formData();
 
-		const minTeamSize = Number(data.get('minTeamSize'));
-		const maxTeamSize = Number(data.get('maxTeamSize'));
+		const minTeamSize = Number(
+			data.get('minTeamSize')
+		);
 
-		if (!Number.isInteger(minTeamSize) || minTeamSize < 1) {
+		const maxTeamSize = Number(
+			data.get('maxTeamSize')
+		);
+
+		if (
+			!Number.isInteger(minTeamSize) ||
+			minTeamSize < 1
+		) {
 			return {
 				success: false,
-				error: 'Minimum team size must be at least 1.'
+				error:
+					'Minimum team size is invalid.'
 			};
 		}
 
@@ -313,22 +483,49 @@ export const actions = {
 			.where(
 				and(
 					eq(events.id, event.id),
-					eq(events.organizerId, user.id)
+					eq(
+						events.organizerId,
+						user.id
+					)
 				)
 			);
 
 		return {
 			success: true,
-			message: 'Team configuration saved.'
+			message:
+				'Team configuration saved.'
 		};
 	},
 
-	addTrack: async ({ request, locals, params }) => {
-		const user = requireOrganizer(locals);
-		const event = await getOwnedEvent(params.id, user.id);
+	/* ---------------------------------------------------------------------- */
+	/* ADD TRACK                                                              */
+	/* ---------------------------------------------------------------------- */
+
+	addTrack: async ({
+		request,
+		locals,
+		params
+	}) => {
+		const user = requireLogin(locals);
+
+		if (user.role !== 'organizer') {
+			throw error(403, 'Forbidden');
+		}
+
+		const event = await getOwnedEvent(
+			params.id,
+			user.id
+		);
 
 		const data = await request.formData();
-		const name = String(data.get('name') ?? '').trim();
+
+		const name = String(
+			data.get('name') ?? ''
+		).trim();
+
+		const description = String(
+			data.get('description') ?? ''
+		).trim();
 
 		if (!name) {
 			return {
@@ -339,7 +536,8 @@ export const actions = {
 
 		await db.insert(tracks).values({
 			eventId: event.id,
-			name
+			name,
+			description
 		});
 
 		return {
@@ -348,12 +546,31 @@ export const actions = {
 		};
 	},
 
-	deleteTrack: async ({ request, locals, params }) => {
-		const user = requireOrganizer(locals);
-		const event = await getOwnedEvent(params.id, user.id);
+	/* ---------------------------------------------------------------------- */
+	/* DELETE TRACK                                                           */
+	/* ---------------------------------------------------------------------- */
+
+	deleteTrack: async ({
+		request,
+		locals,
+		params
+	}) => {
+		const user = requireLogin(locals);
+
+		if (user.role !== 'organizer') {
+			throw error(403, 'Forbidden');
+		}
+
+		const event = await getOwnedEvent(
+			params.id,
+			user.id
+		);
 
 		const data = await request.formData();
-		const trackId = String(data.get('trackId') ?? '');
+
+		const trackId = String(
+			data.get('trackId') ?? ''
+		);
 
 		if (!trackId) {
 			return {
@@ -370,7 +587,10 @@ export const actions = {
 			.where(
 				and(
 					eq(tracks.id, trackId),
-					eq(tracks.eventId, event.id)
+					eq(
+						tracks.eventId,
+						event.id
+					)
 				)
 			)
 			.limit(1);
@@ -379,28 +599,15 @@ export const actions = {
 			throw error(404, 'Track not found');
 		}
 
-		const existingStages = await db
-			.select({
-				id: stages.id
-			})
-			.from(stages)
-			.where(eq(stages.trackId, track.id))
-			.limit(1);
-
-		if (existingStages.length > 0) {
-			return {
-				success: false,
-				error:
-					'This track has stages. Delete its stages before deleting the track.'
-			};
-		}
-
 		await db
 			.delete(tracks)
 			.where(
 				and(
 					eq(tracks.id, track.id),
-					eq(tracks.eventId, event.id)
+					eq(
+						tracks.eventId,
+						event.id
+					)
 				)
 			);
 
@@ -410,182 +617,210 @@ export const actions = {
 		};
 	},
 
-	addStage: async ({ request, locals, params }) => {
-		const user = requireOrganizer(locals);
-		const event = await getOwnedEvent(params.id, user.id);
+	/* ---------------------------------------------------------------------- */
+	/* ADD SUBMISSION FORM                                                    */
+	/* ---------------------------------------------------------------------- */
+
+	addForm: async ({
+		request,
+		locals,
+		params
+	}) => {
+		const user = requireLogin(locals);
+
+		if (user.role !== 'organizer') {
+			throw error(403, 'Forbidden');
+		}
+
+		const event = await getOwnedEvent(
+			params.id,
+			user.id
+		);
 
 		const data = await request.formData();
 
-		const name = String(data.get('name') ?? '').trim();
-		const trackId = String(data.get('trackId') ?? '').trim();
-		const formName = String(
+		const name = String(
 			data.get('formName') ?? ''
 		).trim();
 
 		if (!name) {
 			return {
 				success: false,
-				error: 'Stage name is required.'
-			};
-		}
-
-		if (!trackId) {
-			return {
-				success: false,
-				error: 'A track must be selected.'
-			};
-		}
-
-		if (!formName) {
-			return {
-				success: false,
-				error: 'Submission form name is required.'
-			};
-		}
-
-		const [track] = await db
-			.select({
-				id: tracks.id
-			})
-			.from(tracks)
-			.where(
-				and(
-					eq(tracks.id, trackId),
-					eq(tracks.eventId, event.id)
-				)
-			)
-			.limit(1);
-
-		if (!track) {
-			throw error(404, 'Track not found');
-		}
-
-		await db.transaction(async (tx) => {
-			const [form] = await tx
-				.insert(submissionForms)
-				.values({
-					name: formName
-				})
-				.returning({
-					id: submissionForms.id
-				});
-
-			await tx.insert(stages).values({
-				name,
-				trackId: track.id,
-				formId: form.id
-			});
-		});
-
-		return {
-			success: true,
-			message: 'Stage and submission form added.'
-		};
-	},
-
-	deleteStage: async ({ request, locals, params }) => {
-		const user = requireOrganizer(locals);
-		const event = await getOwnedEvent(params.id, user.id);
-
-		const data = await request.formData();
-		const stageId = String(data.get('stageId') ?? '');
-
-		if (!stageId) {
-			return {
-				success: false,
-				error: 'Stage ID is required.'
-			};
-		}
-
-		const [stage] = await db
-			.select({
-				id: stages.id,
-				formId: stages.formId
-			})
-			.from(stages)
-			.innerJoin(
-				tracks,
-				eq(stages.trackId, tracks.id)
-			)
-			.where(
-				and(
-					eq(stages.id, stageId),
-					eq(tracks.eventId, event.id)
-				)
-			)
-			.limit(1);
-
-		if (!stage) {
-			throw error(404, 'Stage not found');
-		}
-
-		const questions = await db
-			.select({
-				id: customQuestions.id
-			})
-			.from(customQuestions)
-			.where(
-				eq(customQuestions.formId, stage.formId)
-			)
-			.limit(1);
-
-		if (questions.length > 0) {
-			return {
-				success: false,
 				error:
-					'This stage has submission questions. Delete its questions before deleting the stage.'
+					'Submission form name is required.'
 			};
 		}
 
-		await db.transaction(async (tx) => {
-			await tx
-				.delete(stages)
-				.where(eq(stages.id, stage.id));
-
-			await tx
-				.delete(submissionForms)
-				.where(
-					eq(
-						submissionForms.id,
-						stage.formId
-					)
-				);
+		await db.insert(submissionForms).values({
+			eventId: event.id,
+			name
 		});
 
 		return {
 			success: true,
-			message: 'Stage deleted.'
+			message:
+				'Submission form added.'
 		};
 	},
 
-	addQuestion: async ({ request, locals, params }) => {
-		const user = requireOrganizer(locals);
-		const event = await getOwnedEvent(params.id, user.id);
+	/* ---------------------------------------------------------------------- */
+	/* DELETE SUBMISSION FORM                                                 */
+	/* ---------------------------------------------------------------------- */
+
+	deleteForm: async ({
+		request,
+		locals,
+		params
+	}) => {
+		const user = requireLogin(locals);
+
+		if (user.role !== 'organizer') {
+			throw error(403, 'Forbidden');
+		}
+
+		const event = await getOwnedEvent(
+			params.id,
+			user.id
+		);
 
 		const data = await request.formData();
 
 		const formId = String(
 			data.get('formId') ?? ''
-		).trim();
+		);
+
+		if (!formId) {
+			return {
+				success: false,
+				error: 'Form ID is required.'
+			};
+		}
+
+		const [form] = await db
+			.select({
+				id: submissionForms.id
+			})
+			.from(submissionForms)
+			.where(
+				and(
+					eq(
+						submissionForms.id,
+						formId
+					),
+					eq(
+						submissionForms.eventId,
+						event.id
+					)
+				)
+			)
+			.limit(1);
+
+		if (!form) {
+			throw error(
+				404,
+				'Submission form not found'
+			);
+		}
+
+		const existingQuestions =
+			await db
+				.select({
+					id: customQuestions.id
+				})
+				.from(customQuestions)
+				.where(
+					eq(
+						customQuestions.formId,
+						form.id
+					)
+				)
+				.limit(1);
+
+		if (existingQuestions.length > 0) {
+			return {
+				success: false,
+				error:
+					'Delete the questions in this form before deleting the form.'
+			};
+		}
+
+		await db
+			.delete(submissionForms)
+			.where(
+				and(
+					eq(
+						submissionForms.id,
+						form.id
+					),
+					eq(
+						submissionForms.eventId,
+						event.id
+					)
+				)
+			);
+
+		return {
+			success: true,
+			message:
+				'Submission form deleted.'
+		};
+	},
+
+	/* ---------------------------------------------------------------------- */
+	/* ADD QUESTION                                                           */
+	/* ---------------------------------------------------------------------- */
+
+	addQuestion: async ({
+		request,
+		locals,
+		params
+	}) => {
+		const user = requireLogin(locals);
+
+		if (user.role !== 'organizer') {
+			throw error(403, 'Forbidden');
+		}
+
+		const event = await getOwnedEvent(
+			params.id,
+			user.id
+		);
+
+		const data = await request.formData();
+
+		const formId = String(
+			data.get('formId') ?? ''
+		);
 
 		const question = String(
 			data.get('question') ?? ''
 		).trim();
 
 		const questionType = String(
-			data.get('questionType') ?? ''
-		).trim();
+			data.get('questionType') ?? 'text'
+		);
 
-		const optionsValue = String(
+		const required =
+			data.get('required') === 'true';
+
+		const optionsText = String(
 			data.get('options') ?? ''
 		).trim();
 
-		const required = data.get('required') === 'true';
+		const allowedTypes = [
+			'text',
+			'textarea',
+			'number',
+			'select',
+			'radio',
+			'checkbox'
+		];
 
 		if (!formId) {
 			return {
 				success: false,
-				error: 'A submission form must be selected.'
+				error:
+					'Submission form is required.'
 			};
 		}
 
@@ -596,19 +831,8 @@ export const actions = {
 			};
 		}
 
-		const validQuestionTypes = [
-			'text',
-			'textarea',
-			'number',
-			'select',
-			'radio',
-			'checkbox'
-		] as const;
-
 		if (
-			!validQuestionTypes.includes(
-				questionType as (typeof validQuestionTypes)[number]
-			)
+			!allowedTypes.includes(questionType)
 		) {
 			return {
 				success: false,
@@ -621,24 +845,16 @@ export const actions = {
 				id: submissionForms.id
 			})
 			.from(submissionForms)
-			.innerJoin(
-				stages,
-				eq(
-					stages.formId,
-					submissionForms.id
-				)
-			)
-			.innerJoin(
-				tracks,
-				eq(stages.trackId, tracks.id)
-			)
 			.where(
 				and(
 					eq(
 						submissionForms.id,
 						formId
 					),
-					eq(tracks.eventId, event.id)
+					eq(
+						submissionForms.eventId,
+						event.id
+					)
 				)
 			)
 			.limit(1);
@@ -650,41 +866,35 @@ export const actions = {
 			);
 		}
 
-		const needsOptions =
-			questionType === 'select' ||
-			questionType === 'radio' ||
-			questionType === 'checkbox';
+		const options = optionsText
+			.split(',')
+			.map((option) => option.trim())
+			.filter(Boolean);
 
-		const options =
-			needsOptions && optionsValue
-				? optionsValue
-						.split(',')
-						.map((option) => option.trim())
-						.filter(Boolean)
-				: null;
-
-		if (needsOptions && (!options || options.length === 0)) {
+		if (
+			[
+				'select',
+				'radio',
+				'checkbox'
+			].includes(questionType) &&
+			options.length === 0
+		) {
 			return {
 				success: false,
 				error:
-					'Select, radio, and checkbox questions require options.'
+					'Options are required for this question type.'
 			};
 		}
 
-		await db.insert(customQuestions).values({
-			formId: form.id,
-			question,
-			questionType:
-				questionType as
-					| 'text'
-					| 'textarea'
-					| 'number'
-					| 'select'
-					| 'radio'
-					| 'checkbox',
-			required,
-			options
-		});
+		await db
+			.insert(customQuestions)
+			.values({
+				formId: form.id,
+				question,
+				questionType,
+				required,
+				options
+			});
 
 		return {
 			success: true,
@@ -692,11 +902,28 @@ export const actions = {
 		};
 	},
 
-	deleteQuestion: async ({ request, locals, params }) => {
-		const user = requireOrganizer(locals);
-		const event = await getOwnedEvent(params.id, user.id);
+	/* ---------------------------------------------------------------------- */
+	/* DELETE QUESTION                                                        */
+	/* ---------------------------------------------------------------------- */
+
+	deleteQuestion: async ({
+		request,
+		locals,
+		params
+	}) => {
+		const user = requireLogin(locals);
+
+		if (user.role !== 'organizer') {
+			throw error(403, 'Forbidden');
+		}
+
+		const event = await getOwnedEvent(
+			params.id,
+			user.id
+		);
 
 		const data = await request.formData();
+
 		const questionId = String(
 			data.get('questionId') ?? ''
 		);
@@ -704,7 +931,8 @@ export const actions = {
 		if (!questionId) {
 			return {
 				success: false,
-				error: 'Question ID is required.'
+				error:
+					'Question ID is required.'
 			};
 		}
 
@@ -720,24 +948,16 @@ export const actions = {
 					submissionForms.id
 				)
 			)
-			.innerJoin(
-				stages,
-				eq(
-					stages.formId,
-					submissionForms.id
-				)
-			)
-			.innerJoin(
-				tracks,
-				eq(stages.trackId, tracks.id)
-			)
 			.where(
 				and(
 					eq(
 						customQuestions.id,
 						questionId
 					),
-					eq(tracks.eventId, event.id)
+					eq(
+						submissionForms.eventId,
+						event.id
+					)
 				)
 			)
 			.limit(1);
@@ -764,9 +984,24 @@ export const actions = {
 		};
 	},
 
-	makeLive: async ({ locals, params }) => {
-		const user = requireOrganizer(locals);
-		const event = await getOwnedEvent(params.id, user.id);
+	/* ---------------------------------------------------------------------- */
+	/* MAKE EVENT LIVE                                                        */
+	/* ---------------------------------------------------------------------- */
+
+	makeLive: async ({
+		locals,
+		params
+	}) => {
+		const user = requireLogin(locals);
+
+		if (user.role !== 'organizer') {
+			throw error(403, 'Forbidden');
+		}
+
+		const event = await getOwnedEvent(
+			params.id,
+			user.id
+		);
 
 		if (!event.name?.trim()) {
 			return {
@@ -785,34 +1020,35 @@ export const actions = {
 		if (!event.about?.trim()) {
 			return {
 				success: false,
-				error: 'About section is required.'
-			};
-		}
-
-		if (!event.contactEmail?.trim()) {
-			return {
-				success: false,
-				error: 'Contact email is required.'
+				error:
+					'About section is required.'
 			};
 		}
 
 		if (
-			!Number.isInteger(event.minTeamSize) ||
+			!Number.isInteger(
+				event.minTeamSize
+			) ||
 			event.minTeamSize < 1
 		) {
 			return {
 				success: false,
-				error: 'Minimum team size is invalid.'
+				error:
+					'Minimum team size is invalid.'
 			};
 		}
 
 		if (
-			!Number.isInteger(event.maxTeamSize) ||
-			event.maxTeamSize < event.minTeamSize
+			!Number.isInteger(
+				event.maxTeamSize
+			) ||
+			event.maxTeamSize <
+				event.minTeamSize
 		) {
 			return {
 				success: false,
-				error: 'Maximum team size is invalid.'
+				error:
+					'Maximum team size is invalid.'
 			};
 		}
 
@@ -821,7 +1057,9 @@ export const actions = {
 				id: tracks.id
 			})
 			.from(tracks)
-			.where(eq(tracks.eventId, event.id))
+			.where(
+				eq(tracks.eventId, event.id)
+			)
 			.limit(1);
 
 		if (eventTracks.length === 0) {
@@ -829,26 +1067,6 @@ export const actions = {
 				success: false,
 				error:
 					'Add at least one track before making the event live.'
-			};
-		}
-
-		const eventStages = await db
-			.select({
-				id: stages.id
-			})
-			.from(stages)
-			.innerJoin(
-				tracks,
-				eq(stages.trackId, tracks.id)
-			)
-			.where(eq(tracks.eventId, event.id))
-			.limit(1);
-
-		if (eventStages.length === 0) {
-			return {
-				success: false,
-				error:
-					'Add at least one submission stage before making the event live.'
 			};
 		}
 
@@ -861,7 +1079,47 @@ export const actions = {
 			.where(
 				and(
 					eq(events.id, event.id),
-					eq(events.organizerId, user.id)
+					eq(
+						events.organizerId,
+						user.id
+					)
+				)
+			);
+
+		throw redirect(
+			303,
+			'/events/my-events'
+		);
+	},
+
+	/* ---------------------------------------------------------------------- */
+	/* DELETE EVENT                                                           */
+	/* ---------------------------------------------------------------------- */
+
+	deleteEvent: async ({
+		locals,
+		params
+	}) => {
+		const user = requireLogin(locals);
+
+		if (user.role !== 'organizer') {
+			throw error(403, 'Forbidden');
+		}
+
+		const event = await getOwnedEvent(
+			params.id,
+			user.id
+		);
+
+		await db
+			.delete(events)
+			.where(
+				and(
+					eq(events.id, event.id),
+					eq(
+						events.organizerId,
+						user.id
+					)
 				)
 			);
 

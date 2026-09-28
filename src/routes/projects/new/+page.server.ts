@@ -1,340 +1,702 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 
 import { db } from '$lib/server/db';
 import {
-	events,
-	projects,
-	tracks
+    events,
+    projects,
+    tracks,
+    teams,
+    teamMembers,
+    submissionForms,
+    customQuestions,
+    customAnswers
 } from '$lib/server/db/schema';
 
-import {
-	requireParticipant,
-	getTeamForUser,
-	getSubmissionStage
-} from '$lib/server/t1/projects';
+async function requireParticipant(
+    locals: App.Locals
+) {
+    if (!locals.user) {
+        throw redirect(303, '/login');
+    }
 
-export const load = async ({ locals }) => {
-	if (!locals.user) {
-		throw redirect(303, '/login');
-	}
+    if (locals.user.role !== 'participant') {
+        throw redirect(303, '/events');
+    }
 
-	await requireParticipant(locals.user.id);
+    return locals.user;
+}
 
-	const eventRows = await db
-		.select({
-			id: events.id,
-			name: events.name
-		})
-		.from(events);
+async function getTeamForUser(
+    userEmail: string,
+    eventId: string
+) {
+    const [team] = await db
+        .select({
+            id: teams.id,
+            teamName: teams.teamName
+        })
+        .from(teams)
+        .innerJoin(
+            teamMembers,
+            eq(
+                teamMembers.teamId,
+                teams.id
+            )
+        )
+        .where(
+            and(
+                eq(
+                    teamMembers.userEmail,
+                    userEmail
+                ),
+                eq(
+                    teams.eventId,
+                    eventId
+                )
+            )
+        )
+        .limit(1);
 
-	const trackRows = await db
-		.select({
-			id: tracks.id,
-			eventId: tracks.eventId,
-			name: tracks.name
-		})
-		.from(tracks);
+    return team;
+}
 
-	return {
-		events: eventRows,
-		tracks: trackRows
-	};
+export const load = async ({ locals, url }) => {
+    const user = await requireParticipant(
+        locals
+    );
+
+    const eventId =
+        url.searchParams.get('eventId') ?? '';
+
+    if (!eventId) {
+        return {
+            event: null,
+            tracks: [],
+            forms: [],
+            questions: [],
+            project: null,
+            error:
+                'Select an event before creating a submission.'
+        };
+    }
+
+    const [event] = await db
+        .select()
+        .from(events)
+        .where(
+            and(
+                eq(events.id, eventId),
+                eq(events.status, 'live')
+            )
+        )
+        .limit(1);
+
+    if (!event) {
+        return {
+            event: null,
+            tracks: [],
+            forms: [],
+            questions: [],
+            project: null,
+            error: 'Event not found.'
+        };
+    }
+
+    const team = await getTeamForUser(
+        user.email,
+        event.id
+    );
+
+    if (!team) {
+        throw redirect(
+            303,
+            `/events/${event.id}/apply`
+        );
+    }
+
+    const eventTracks = await db
+        .select({
+            id: tracks.id,
+            name: tracks.name,
+            description: tracks.description
+        })
+        .from(tracks)
+        .where(eq(tracks.eventId, event.id))
+        .orderBy(asc(tracks.name));
+
+    const forms = await db
+        .select({
+            id: submissionForms.id,
+            name: submissionForms.name
+        })
+        .from(submissionForms)
+        .where(
+            eq(
+                submissionForms.eventId,
+                event.id
+            )
+        )
+        .orderBy(asc(submissionForms.name));
+
+    const questions = await db
+        .select({
+            id: customQuestions.id,
+            formId: customQuestions.formId,
+            question: customQuestions.question,
+            questionType:
+                customQuestions.questionType,
+            required: customQuestions.required,
+            options: customQuestions.options,
+            formName: submissionForms.name
+        })
+        .from(customQuestions)
+        .innerJoin(
+            submissionForms,
+            eq(
+                customQuestions.formId,
+                submissionForms.id
+            )
+        )
+        .where(
+            eq(
+                submissionForms.eventId,
+                event.id
+            )
+        )
+        .orderBy(
+            asc(submissionForms.name),
+            asc(customQuestions.createdAt)
+        );
+
+    const [existingProject] = await db
+        .select()
+        .from(projects)
+        .where(
+            eq(
+                projects.teamId,
+                team.id
+            )
+        )
+        .limit(1);
+
+    let existingAnswers: {
+        questionId: string;
+        answer: string | null;
+    }[] = [];
+
+    if (existingProject) {
+        existingAnswers = await db
+            .select({
+                questionId:
+                    customAnswers.questionId,
+                answer: customAnswers.answer
+            })
+            .from(customAnswers)
+            .where(
+                eq(
+                    customAnswers.projectId,
+                    existingProject.id
+                )
+            );
+    }
+
+    return {
+        event,
+        tracks: eventTracks,
+        forms,
+        questions,
+        project: existingProject ?? null,
+        answers: existingAnswers,
+        team
+    };
 };
 
 export const actions = {
-	saveDraft: async ({ request, locals }) => {
-		if (!locals.user) {
-			return fail(401, {
-				error: 'Authentication required.'
-			});
-		}
+    saveDraft: async ({
+        request,
+        locals,
+        url
+    }) => {
+        const user = await requireParticipant(
+            locals
+        );
 
-		await requireParticipant(locals.user.id);
+        const form = await request.formData();
 
-		const form = await request.formData();
+        const eventId = String(
+            form.get('eventId') ?? ''
+        ).trim();
 
-		const eventId = String(
-			form.get('eventId') ?? ''
-		);
+        const trackId = String(
+            form.get('trackId') ?? ''
+        ).trim();
 
-		const trackId = String(
-			form.get('trackId') ?? ''
-		);
+        const projectName = String(
+            form.get('projectName') ?? ''
+        ).trim();
 
-		const projectName = String(
-			form.get('projectName') ?? ''
-		).trim();
+        const projectTagline = String(
+            form.get('projectTagline') ?? ''
+        ).trim();
 
-		const projectTagline = String(
-			form.get('projectTagline') ?? ''
-		).trim();
+        const longDescription = String(
+            form.get('longDescription') ?? ''
+        ).trim();
 
-		const longDescription = String(
-			form.get('longDescription') ?? ''
-		).trim();
+        const repoUrl = String(
+            form.get('repoUrl') ?? ''
+        ).trim();
 
-		const repoUrl = String(
-			form.get('repoUrl') ?? ''
-		).trim();
+        const demoVideoUrl = String(
+            form.get('demoVideoUrl') ?? ''
+        ).trim();
 
-		const demoVideoUrl = String(
-			form.get('demoVideoUrl') ?? ''
-		).trim();
+        if (
+            !eventId ||
+            !trackId ||
+            !projectName ||
+            !longDescription
+        ) {
+            return fail(400, {
+                success: false,
+                error:
+                    'Event, track, project name and description are required.'
+            });
+        }
 
-		if (!eventId || !trackId || !projectName) {
-			return fail(400, {
-				error:
-					'Event, track and project name are required.'
-			});
-		}
+        const team = await getTeamForUser(
+            user.email,
+            eventId
+        );
 
-		const team = await getTeamForUser(
-			locals.user.id,
-			eventId
-		);
+        if (!team) {
+            return fail(403, {
+                success: false,
+                error:
+                    'You must apply to the event first.'
+            });
+        }
 
-		if (!team) {
-			return fail(403, {
-				error:
-					'You must form or join a team before creating a submission.'
-			});
-		}
+        const [track] = await db
+            .select({
+                id: tracks.id
+            })
+            .from(tracks)
+            .where(
+                and(
+                    eq(
+                        tracks.id,
+                        trackId
+                    ),
+                    eq(
+                        tracks.eventId,
+                        eventId
+                    )
+                )
+            )
+            .limit(1);
 
-		const stageRecord =
-			await getSubmissionStage(
-				eventId,
-				trackId
-			);
+        if (!track) {
+            return fail(400, {
+                success: false,
+                error:
+                    'Selected track does not belong to this event.'
+            });
+        }
 
-		if (!stageRecord) {
-			return fail(400, {
-				error:
-					'This track does not have a submission stage.'
-			});
-		}
+        const [existing] = await db
+            .select()
+            .from(projects)
+            .where(
+                eq(
+                    projects.teamId,
+                    team.id
+                )
+            )
+            .limit(1);
 
-		const existing = await db
-			.select()
-			.from(projects)
-			.where(eq(projects.teamId, team.id))
-			.limit(1);
+        let projectId: string;
 
-		if (existing[0]) {
-			await db
-				.update(projects)
-				.set({
-					stageId: stageRecord.stage.id,
-					projectName,
-					projectTagline:
-						projectTagline || null,
-					longDescription,
-					repoUrl: repoUrl || null,
-					demoVideoUrl:
-						demoVideoUrl || null
-				})
-				.where(eq(projects.id, existing[0].id));
+        if (existing) {
+            await db
+                .update(projects)
+                .set({
+                    trackId,
+                    projectName,
+                    projectTagline:
+                        projectTagline || null,
+                    longDescription,
+                    repoUrl:
+                        repoUrl || null,
+                    demoVideoUrl:
+                        demoVideoUrl || null
+                })
+                .where(
+                    eq(
+                        projects.id,
+                        existing.id
+                    )
+                );
 
-			throw redirect(
-				303,
-				`/projects/${existing[0].id}/edit`
-			);
-		}
+            projectId = existing.id;
+        } else {
+            const [created] = await db
+                .insert(projects)
+                .values({
+                    teamId: team.id,
+                    trackId,
+                    projectName,
+                    projectTagline:
+                        projectTagline || null,
+                    longDescription,
+                    repoUrl:
+                        repoUrl || null,
+                    demoVideoUrl:
+                        demoVideoUrl || null,
+                    status: 'draft'
+                })
+                .returning({
+                    id: projects.id
+                });
 
-		const created = await db
-			.insert(projects)
-			.values({
-				teamId: team.id,
-				stageId: stageRecord.stage.id,
-				projectName,
-				projectTagline:
-					projectTagline || null,
-				longDescription,
-				repoUrl: repoUrl || null,
-				demoVideoUrl:
-					demoVideoUrl || null,
-				status: 'draft'
-			})
-			.returning({
-				id: projects.id
-			});
+            projectId = created.id;
+        }
 
-		throw redirect(
-			303,
-			`/projects/${created[0].id}/edit`
-		);
-	},
+        await saveCustomAnswers(
+            projectId,
+            form
+        );
 
-	submit: async ({ request, locals }) => {
-		if (!locals.user) {
-			return fail(401, {
-				error: 'Authentication required.'
-			});
-		}
+        throw redirect(
+            303,
+            `/projects/new?eventId=${eventId}`
+        );
+    },
 
-		await requireParticipant(locals.user.id);
+    submit: async ({
+        request,
+        locals
+    }) => {
+        const user = await requireParticipant(
+            locals
+        );
 
-		const form = await request.formData();
+        const form = await request.formData();
 
-		const eventId = String(
-			form.get('eventId') ?? ''
-		);
+        const eventId = String(
+            form.get('eventId') ?? ''
+        ).trim();
 
-		const trackId = String(
-			form.get('trackId') ?? ''
-		);
+        const trackId = String(
+            form.get('trackId') ?? ''
+        ).trim();
 
-		const projectName = String(
-			form.get('projectName') ?? ''
-		).trim();
+        const projectName = String(
+            form.get('projectName') ?? ''
+        ).trim();
 
-		const longDescription = String(
-			form.get('longDescription') ?? ''
-		).trim();
+        const longDescription = String(
+            form.get('longDescription') ?? ''
+        ).trim();
 
-		if (
-			!eventId ||
-			!trackId ||
-			!projectName ||
-			!longDescription
-		) {
-			return fail(400, {
-				error:
-					'Event, track, project name and description are required.'
-			});
-		}
+        if (
+            !eventId ||
+            !trackId ||
+            !projectName ||
+            !longDescription
+        ) {
+            return fail(400, {
+                success: false,
+                error:
+                    'Event, track, project name and description are required.'
+            });
+        }
 
-		const team = await getTeamForUser(
-			locals.user.id,
-			eventId
-		);
+        const [event] = await db
+            .select()
+            .from(events)
+            .where(
+                and(
+                    eq(events.id, eventId),
+                    eq(
+                        events.status,
+                        'live'
+                    )
+                )
+            )
+            .limit(1);
 
-		if (!team) {
-			return fail(403, {
-				error:
-					'You must belong to a team for this event.'
-			});
-		}
+        if (!event) {
+            return fail(404, {
+                success: false,
+                error:
+                    'Event not found.'
+            });
+        }
 
-		const stageRecord =
-			await getSubmissionStage(
-				eventId,
-				trackId
-			);
+        if (
+            event.submissionsClose &&
+            new Date() >
+                new Date(
+                    event.submissionsClose
+                )
+        ) {
+            return fail(403, {
+                success: false,
+                error:
+                    'The submission deadline has passed.'
+            });
+        }
 
-		if (!stageRecord) {
-			return fail(400, {
-				error:
-					'No submission stage exists for this track.'
-			});
-		}
+        const team = await getTeamForUser(
+            user.email,
+            eventId
+        );
 
-		const deadline =
-			stageRecord.stage.endAt;
+        if (!team) {
+            return fail(403, {
+                success: false,
+                error:
+                    'You must apply to the event first.'
+            });
+        }
 
-		if (
-			deadline &&
-			new Date() > new Date(deadline)
-		) {
-			return fail(403, {
-				error:
-					'The submission deadline has passed.'
-			});
-		}
+        const [track] = await db
+            .select({
+                id: tracks.id
+            })
+            .from(tracks)
+            .where(
+                and(
+                    eq(
+                        tracks.id,
+                        trackId
+                    ),
+                    eq(
+                        tracks.eventId,
+                        eventId
+                    )
+                )
+            )
+            .limit(1);
 
-		const existing = await db
-			.select()
-			.from(projects)
-			.where(eq(projects.teamId, team.id))
-			.limit(1);
+        if (!track) {
+            return fail(400, {
+                success: false,
+                error:
+                    'Selected track does not belong to this event.'
+            });
+        }
 
-		if (existing[0]) {
-			if (
-				existing[0].status ===
-				'submitted'
-			) {
-				return fail(409, {
-					error:
-						'This project has already been submitted.'
-				});
-			}
+        const [existing] = await db
+            .select()
+            .from(projects)
+            .where(
+                eq(
+                    projects.teamId,
+                    team.id
+                )
+            )
+            .limit(1);
 
-			await db
-				.update(projects)
-				.set({
-					stageId:
-						stageRecord.stage.id,
-					projectName,
-					projectTagline:
-						String(
-							form.get(
-								'projectTagline'
-							) ?? ''
-						).trim() || null,
-					longDescription,
-					repoUrl:
-						String(
-							form.get(
-								'repoUrl'
-							) ?? ''
-						).trim() || null,
-					demoVideoUrl:
-						String(
-							form.get(
-								'demoVideoUrl'
-							) ?? ''
-						).trim() || null,
-					status: 'submitted',
-					submittedAt: new Date()
-				})
-				.where(
-					eq(
-						projects.id,
-						existing[0].id
-					)
-				);
+        let projectId: string;
 
-			throw redirect(
-				303,
-				`/projects/${existing[0].id}`
-			);
-		}
+        if (existing) {
+            if (
+                existing.status ===
+                'submitted'
+            ) {
+                return fail(409, {
+                    success: false,
+                    error:
+                        'This project has already been submitted.'
+                });
+            }
 
-		const created = await db
-			.insert(projects)
-			.values({
-				teamId: team.id,
-				stageId: stageRecord.stage.id,
-				projectName,
-				projectTagline:
-					String(
-						form.get(
-							'projectTagline'
-						) ?? ''
-					).trim() || null,
-				longDescription,
-				repoUrl:
-					String(
-						form.get(
-							'repoUrl'
-						) ?? ''
-					).trim() || null,
-				demoVideoUrl:
-					String(
-						form.get(
-							'demoVideoUrl'
-						) ?? ''
-					).trim() || null,
-				status: 'submitted',
-				submittedAt: new Date()
-			})
-			.returning({
-				id: projects.id
-			});
+            await db
+                .update(projects)
+                .set({
+                    trackId,
+                    projectName,
+                    projectTagline:
+                        String(
+                            form.get(
+                                'projectTagline'
+                            ) ?? ''
+                        ).trim() ||
+                        null,
+                    longDescription,
+                    repoUrl:
+                        String(
+                            form.get(
+                                'repoUrl'
+                            ) ?? ''
+                        ).trim() ||
+                        null,
+                    demoVideoUrl:
+                        String(
+                            form.get(
+                                'demoVideoUrl'
+                            ) ?? ''
+                        ).trim() ||
+                        null,
+                    status: 'submitted',
+                    submittedAt: new Date()
+                })
+                .where(
+                    eq(
+                        projects.id,
+                        existing.id
+                    )
+                );
 
-		throw redirect(
-			303,
-			`/projects/${created[0].id}`
-		);
-	}
+            projectId = existing.id;
+        } else {
+            const [created] = await db
+                .insert(projects)
+                .values({
+                    teamId: team.id,
+                    trackId,
+                    projectName,
+                    projectTagline:
+                        String(
+                            form.get(
+                                'projectTagline'
+                            ) ?? ''
+                        ).trim() ||
+                        null,
+                    longDescription,
+                    repoUrl:
+                        String(
+                            form.get(
+                                'repoUrl'
+                            ) ?? ''
+                        ).trim() ||
+                        null,
+                    demoVideoUrl:
+                        String(
+                            form.get(
+                                'demoVideoUrl'
+                            ) ?? ''
+                        ).trim() ||
+                        null,
+                    status: 'submitted',
+                    submittedAt: new Date()
+                })
+                .returning({
+                    id: projects.id
+                });
+
+            projectId = created.id;
+        }
+
+        await saveCustomAnswers(
+            projectId,
+            form
+        );
+
+        throw redirect(
+            303,
+            `/projects/${projectId}`
+        );
+    }
 };
+
+async function saveCustomAnswers(
+    projectId: string,
+    form: FormData
+) {
+    const [project] = await db
+        .select({
+            id: projects.id,
+            teamId: projects.teamId
+        })
+        .from(projects)
+        .where(
+            eq(
+                projects.id,
+                projectId
+            )
+        )
+        .limit(1);
+
+    if (!project) {
+        return;
+    }
+
+    const questions = await db
+        .select({
+            id: customQuestions.id,
+            questionType:
+                customQuestions.questionType
+        })
+        .from(customQuestions)
+        .innerJoin(
+            submissionForms,
+            eq(
+                customQuestions.formId,
+                submissionForms.id
+            )
+        )
+        .innerJoin(
+            events,
+            eq(
+                submissionForms.eventId,
+                events.id
+            )
+        )
+        .innerJoin(
+            teams,
+            eq(
+                teams.eventId,
+                events.id
+            )
+        )
+        .where(
+            eq(
+                teams.id,
+                project.teamId
+            )
+        );
+
+    for (const question of questions) {
+        const values = form.getAll(
+            `question_${question.id}`
+        );
+
+        let answer: string | null = null;
+
+        if (question.questionType === 'checkbox') {
+            answer =
+                values.length > 0
+                    ? values
+                          .map(String)
+                          .join(', ')
+                    : null;
+        } else {
+            answer =
+                values.length > 0
+                    ? String(values[0])
+                    : null;
+        }
+
+        await db
+            .insert(customAnswers)
+            .values({
+                projectId,
+                questionId:
+                    question.id,
+                answer
+            })
+            .onConflictDoUpdate({
+                target: [
+                    customAnswers.projectId,
+                    customAnswers.questionId
+                ],
+                set: {
+                    answer
+                }
+            });
+    }
+}

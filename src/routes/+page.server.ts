@@ -3,7 +3,6 @@ import {
 	events,
 	projects,
 	teams,
-	stages,
 	tracks,
 	users
 } from '$lib/server/db/schema';
@@ -11,6 +10,10 @@ import { count, desc, eq } from 'drizzle-orm';
 
 export const load = async ({ locals }) => {
 	const now = new Date();
+
+	// -----------------------------------------------------------------------
+	// Current / upcoming events
+	// -----------------------------------------------------------------------
 
 	const eventRows = await db
 		.select({
@@ -52,10 +55,14 @@ export const load = async ({ locals }) => {
 		};
 	});
 
+	// -----------------------------------------------------------------------
+	// Project gallery
+	// -----------------------------------------------------------------------
+
 	const galleryRows = await db
 		.select({
 			id: projects.id,
-			projectName: projects.projectName,
+			projectName: projects.title,
 			projectTagline: projects.projectTagline,
 			thumbnail: projects.thumbnail,
 			eventName: events.name,
@@ -64,10 +71,13 @@ export const load = async ({ locals }) => {
 		.from(projects)
 		.innerJoin(teams, eq(projects.teamId, teams.id))
 		.innerJoin(events, eq(teams.eventId, events.id))
-		.innerJoin(stages, eq(projects.stageId, stages.id))
-		.innerJoin(tracks, eq(stages.trackId, tracks.id))
+		.innerJoin(tracks, eq(projects.trackId, tracks.id))
 		.orderBy(desc(projects.submittedAt))
 		.limit(3);
+
+	// -----------------------------------------------------------------------
+	// Admin statistics
+	// -----------------------------------------------------------------------
 
 	let adminStats = null;
 
@@ -102,6 +112,10 @@ export const load = async ({ locals }) => {
 		};
 	}
 
+	// -----------------------------------------------------------------------
+	// Return page data
+	// -----------------------------------------------------------------------
+
 	return {
 		user: locals.user,
 		events: currentEvents,
@@ -109,4 +123,3 @@ export const load = async ({ locals }) => {
 		adminStats
 	};
 };
-
